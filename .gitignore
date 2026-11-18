@@ -1,0 +1,9 @@
+.idea/
+.gradle/
+.gradle-home/
+.kotlin/
+**/build/
+local.properties
+.design-work/
+.lanhu-read.py
+BJX-GH-Api.md

@@ -1,0 +1,618 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="text_submit" formatted="false">Submit</string>
+    
+    <string name="text_cancel" formatted="false">Cancel</string>
+    
+    <string name="text_by_proceeding_you_confirm_your_agreement_to_our_te" formatted="false">
+        <font color="#ffffff">By proceeding, you confirm your agreement to our </font>
+        <font color="#ffffff">Terms &amp; Conditions</font>
+        <font color="#ffffff"> and </font>
+        <font color="#ffffff">Privacy Policy</font>
+        <font color="#ffffff">.</font>
+    </string>
+    
+    <string name="text_reject_and_exit" formatted="false">Reject and Exit</string>
+    
+    <string name="text_welcome_to_loan_day_as_a_professional_loan_platfor" formatted="false">Welcome to Loan Day. As a professional loan platform, we will strive to provide you with professional, convenient and multi-choice services and products. Therefore, when you use this platform, we need your authorization for the following data. After your authorization, we will analyze your application data for risk assessment and recommend suitable loan services and products for you. Your data will not be disclosed to any third party except with your permission. If you continue to use it, it will mean that you agree and accept our policy, if you refuse, you can still browse this platform, but you will not be able to apply for a loan.</string>
+    
+    <string name="text_user_privileges" formatted="false">User Privileges</string>
+    
+    <string name="text_camera_and_lmages_photos_nin_the_process_of_a_pply" formatted="false">
+        <font color="#120d01">
+            <b>Camera and Lmages &amp; Photos\n</b>
+        </font>
+        <font color="#120d01">In the process of a pplying for a loan, you need to authorize the use of photography, so that you can click on the photos of KYC documents and other necessary documents, which is a convenient experience for you. Therefore, we need camera, photo and file permissions. We also need to obtain your image information to analyze your financial situation and assess the risk of fraud. This will speed up your application process.</font>
+    </string>
+    
+    <string name="text_location_nwe_need_your_authorization_to_allow_us_t" formatted="false">
+        <font color="#120d01">
+            <b>Location\n</b>
+        </font>
+        <font color="#120d01">We need your authorization to allow us to collect the location information of your equipment and know your real location, so as to ensure that you are within the scope of our services, so as to reduce the risk of your loan application.</font>
+    </string>
+    
+    <string name="text_verification_code_otp" formatted="false">Verification Code (OTP)</string>
+    
+    <string name="text_get_otp" formatted="false">Get OTP</string>
+    
+    <string name="text_ghana" formatted="false">Ghana</string>
+    
+    <string name="text_phone_number" formatted="false">Phone Number</string>
+    
+    <string name="text_back" formatted="false">Back</string>
+    
+    <string name="text_please_select_country" formatted="false">Please select country</string>
+    
+    <string name="text_contacts_list_nas_a_part_of_our_loan_journey_we_re" formatted="false">
+        <font color="#ffc322">
+            <b>Contacts list</b>
+        </font>
+        <font color="#120d01">\nAs a part of our loan journey, we require references from the Loan applicant. In this regard, during filing the form on our App, we collect your contact information to detect close contacts including name and phone numbers which enable you to fill the data automatically. The more credible the references are, the lower is the risk associated to a User. We only collect contact information with your additional express consent. Contact information will be uploaded to BBBBBBBBBBBBBBB. After determining your risk profile, we will delete the contact information.</font>
+    </string>
+    
+    <string name="text_tanzania" formatted="false">Tanzania</string>
+    
+    <string name="text_9832" formatted="false">9832</string>
+    
+    <string name="text_enter_a_4_digit_verification_code" formatted="false">Enter a 4-digit verification code</string>
+    
+    <string name="text_device_nwe_collect_your_mobile_phone_information_i" formatted="false">
+        <font color="#120d01">
+            <b>Device\n</b>
+        </font>
+        <font color="#120d01">We collect your mobile phone information, including brand, model, ROM, ram, Google Advertising ID, Android system version, resolution, etc.; Improve your credit evaluation and provide personalized services.</font>
+    </string>
+    
+    <string name="text_do_you_urgently_need_a_loan_do_you_urgently_need_a" formatted="false">Do you urgently need a loan? | Do you urgently need a loan? | You can borrow money safely here, and you can use it with confidence. | Credit Cedi</string>
+    
+    <string name="text_enter_your_phone_number" formatted="false">Enter your phone number</string>
+    
+    <string name="text_sign_in" formatted="false">Sign In</string>
+    
+    <string name="text_60_s" formatted="false">60 s</string>
+    
+    <string name="text_233" formatted="false">+233</string>
+    
+    <string name="text_9127323821" formatted="false">9127323821</string>
+    
+    <string name="text_sms_nwhen_you_use_this_platform_we_need_to_collect" formatted="false">
+        <font color="#ffc322">
+            <b>SMS</b>
+        </font>
+        <font color="#120d01">\nWhen you use this platform, we need to collect, transmit, store and analyze your personal SMS information, including various accounts, transaction amount and transaction date. By analyzing these data, we can evaluate your credit and determine your risk status. This enables you to obtain financial facilities from regulated financial entities and other service providers available on the platform. Since the current online credit system is not perfect, your information is an important basis for obtaining loan approval. When using this application, it will send messages to our affiliated server regularly. Please note that we will only collect messages with your explicit consent. SMS will be uploaded to AAAAA. We will delete this message immediately after determining your risk status.</font>
+    </string>
+    
+    <string name="text_installed_applications_nwe_collect_a_list_of_insta" formatted="false">
+        <font color="#ffc322">
+            <b>Installed Applications</b>
+        </font>
+        <font color="#120d01">\nWe collect a list of installed application metadata information, including application name, package name, installation time, update time, version name and version code of each installed application on your device. By analyzing this information, we can understand the financial status of users to evaluate your credit value and enrich your personal data through pre-approved customized loans. We collect information about installed applications only with your express consent. Installed application information will be uploaded to BBBBBBBBBBBB. After determining your risk profile, we will delete the application information you installed.</font>
+    </string>
+    
+    <string name="text_confirm_agreement" formatted="false">Confirm Agreement</string>
+    
+    <string name="text_my_orders" formatted="false">My Orders</string>
+    
+    <string name="text_order_number_jkd1232312312312312312" formatted="false">
+        <font color="#999999">Order Number : </font>
+        <font color="#120d01">JKD1232312312312312312</font>
+    </string>
+    
+    <string name="text_xxxxxxxxxxxxxxxxxxxx" formatted="false">XXXXXXXXXXXXXXXXXXXX</string>
+    
+    <string name="text_sign_out" formatted="false">Sign Out</string>
+    
+    <string name="text_version_1_0_0" formatted="false">Version 1.0.0</string>
+    
+    <string name="text_share_your_thoughts" formatted="false">Share Your Thoughts</string>
+    
+    <string name="text_payout_failed" formatted="false">Payout Failed</string>
+    
+    <string name="text_feature_suggestion" formatted="false">Feature Suggestion</string>
+    
+    <string name="text_go_apply" formatted="false">Go Apply</string>
+    
+    <string name="text_loans_will_not_be_issued_if_the_wallet_and_account" formatted="false">Loans will not be issued if the wallet and account number do not match. Please confirm their accuracy.</string>
+    
+    <string name="text_repayment_completed" formatted="false">Repayment Completed</string>
+    
+    <string name="text_contact_email_12312312_123_com" formatted="false">Contact Email : 12312312@123.com</string>
+    
+    <string name="text_xxxxxxxxxxxxxxxxxx" formatted="false">XXXXXXXXXXXXXXXXXX</string>
+    
+    <string name="text_home" formatted="false">Home</string>
+    
+    <string name="text_pdf_file" formatted="false">PDF file</string>
+    
+    <string name="text_disbursing" formatted="false">Disbursing</string>
+    
+    <string name="text_please_select" formatted="false">Please Select</string>
+    
+    <string name="text_view_feedback_list_feedback" formatted="false">View feedback list | Feedback</string>
+    
+    <string name="text_edit_now" formatted="false">Edit Now</string>
+    
+    <string name="text_start_application_now" formatted="false">Start Application Now</string>
+    
+    <string name="text_privacy_policy" formatted="false">Privacy Policy</string>
+    
+    <string name="text_12_12_2024_12_00_00" formatted="false">12-12-2024 12:00:00</string>
+    
+    <string name="text_xxxxxx" formatted="false">XXXXXX</string>
+    
+    <string name="text_please_upload_a_pdf_file" formatted="false">
+        <font color="#120d01">Please upload a PDF file</font>
+        <font color="#120d01">.</font>
+    </string>
+    
+    <string name="text_about_us" formatted="false">About Us</string>
+    
+    <string name="text_please_describe_your_problem_pleasehj_pleas_descri" formatted="false">Please describe your problem Pleasehj Pleas describe your problem…</string>
+    
+    <string name="text_apply_date" formatted="false">Apply Date</string>
+    
+    <string name="text_are_you_positive_you_want_to_delete_this" formatted="false">Are you positive you want to delete this?</string>
+    
+    <string name="text_receiving_account" formatted="false">Receiving Account</string>
+    
+    <string name="text_hours_of_operation_9_00_am_6_00_pm" formatted="false">Hours of Operation : 9:00 AM–6:00 PM</string>
+    
+    <string name="text_please_sign_in" formatted="false">Please sign in</string>
+    
+    <string name="text_please_upload_the_problematic_image" formatted="false">Please upload the problematic image.</string>
+    
+    <string name="text_please_submit_feedback_on_the_my_orders_page" formatted="false">Please submit feedback on the My Orders page</string>
+    
+    <string name="text_please_enter" formatted="false">Please Enter</string>
+    
+    <string name="text_do_you_really_want_to_sign_out_logging_out_will_ma" formatted="false">Do you really want to sign out? Logging out will make some functionality unavailable.</string>
+    
+    <string name="text_30_12_2020" formatted="false">30-12-2020</string>
+    
+    <string name="text_profile_center" formatted="false">Profile Center</string>
+    
+    <string name="text_order_number" formatted="false">Order Number</string>
+    
+    <string name="text_view_feedback_list" formatted="false">View feedback list</string>
+    
+    <string name="text_waiting_for_review" formatted="false">Waiting For Review</string>
+    
+    <string name="text_image_files" formatted="false">Image files</string>
+    
+    <string name="text_loan_amount" formatted="false">Loan Amount</string>
+    
+    <string name="text_pending_repayment" formatted="false">Pending Repayment</string>
+    
+    <string name="text_enter_wallet_account" formatted="false">Enter wallet account</string>
+    
+    <string name="text_feedback" formatted="false">Feedback</string>
+    
+    <string name="text_have_a_question_type_it_herehave_a_que_type_it_her" formatted="false">Have a question? Type it hereHave a que Type it hereHave a question? Type it her Have a que Type it hereHave astion Type it here</string>
+    
+    <string name="text_rejected" formatted="false">Rejected</string>
+    
+    <string name="text_have_a_question_type_it_here" formatted="false">Have a question? Type it here</string>
+    
+    <string name="text_wallet_account" formatted="false">Wallet Account</string>
+    
+    <string name="text_photograph" formatted="false">Photograph</string>
+    
+    <string name="text_congratulations_your_submission_has_been_successfu" formatted="false">Congratulations! Your submission has been successful. We will solve the problem for you.</string>
+    
+    <string name="text_ghs_400_000_00" formatted="false">GHS 400,000.00</string>
+    
+    <string name="text_local_photo_album" formatted="false">Local photo album</string>
+    
+    <string name="text_choose" formatted="false">Choose</string>
+    
+    <string name="text_thank_you_for_your_interest_we_will_do_our_best_to" formatted="false">Thank you for your interest. We will do our best to solve your financial problems. Apply for our product now!</string>
+    
+    <string name="text_we_welcome_your_feedback_please_email_any_question" formatted="false">We welcome your feedback. Please email any questions or complaints to our customer service team.</string>
+    
+    <string name="text_overdue" formatted="false">Overdue</string>
+    
+    <string name="text_specific_order_issue" formatted="false">Specific Order Issue</string>
+    
+    <string name="text_name" formatted="false">Name</string>
+    
+    <string name="text_credit_cedi" formatted="false">Credit Cedi</string>
+    
+    <string name="text_please_revise" formatted="false">Please revise</string>
+    
+    <string name="text_confirm" formatted="false">Confirm</string>
+    
+    <string name="text_choose_your_wallet" formatted="false">Choose Your Wallet</string>
+    
+    <string name="text_you_have_unapplied_credit_limits_apply_for_them_no" formatted="false">You have unapplied credit limits, apply for them now.</string>
+    
+    <string name="text_wallet_account_please_revise" formatted="false">Wallet Account | Please revise</string>
+    
+    <string name="text_jkd1232312312312312312" formatted="false">JKD1232312312312312312</string>
+    
+    <string name="text_detail" formatted="false">Detail</string>
+    
+    <string name="text_365_days" formatted="false">365 Days</string>
+    
+    <string name="text_loan_term" formatted="false">Loan Term</string>
+    
+    <string name="text_unlock_better_credit_options_by_paying_on_schedule" formatted="false">Unlock better credit options by paying on schedule.</string>
+    
+    <string name="text_repayment_extension" formatted="false">Repayment Extension</string>
+    
+    <string name="text_extension_term" formatted="false">Extension Term</string>
+    
+    <string name="text_extension_repayment_means_paying_an_extension_fee" formatted="false">Extension repayment means paying an extension fee to move the due date to the next cycle.</string>
+    
+    <string name="text_please_use_the_official_repayment_link_or_in_app_r" formatted="false">Please use the official repayment link or in-app repayment portal. Avoid UPI links from individuals. Submit feedback if there’s any issue.</string>
+    
+    <string name="text_ghs_25_000" formatted="false">GHS 25,000</string>
+    
+    <string name="text_ghc_400_000_00" formatted="false">GHC 400,000.00</string>
+    
+    <string name="text_full_service_fee" formatted="false">Full Service Fee :</string>
+    
+    <string name="text_cash_range" formatted="false">Cash Range</string>
+    
+    <string name="text_withdraw" formatted="false">Withdraw</string>
+    
+    <string name="text_received_amount" formatted="false">Received Amount :</string>
+    
+    <string name="text_repayment_amount" formatted="false">Repayment Amount</string>
+    
+    <string name="text_congratulations_you_ve_been_selected_to_receive_gh" formatted="false">
+        <font color="#999999">Congratulations! You\'ve been selected to receive GHS </font>
+        <font color="#999999">1,000,000 </font>
+        <font color="#999999">– it\'s all yours!</font>
+    </string>
+    
+    <string name="text_please_select_a_time" formatted="false">Please select a time :</string>
+    
+    <string name="text_overdue_charge" formatted="false">Overdue Charge</string>
+    
+    <string name="text_next_repayment_date" formatted="false">Next Repayment Date</string>
+    
+    <string name="text_your_withdrawal_request_was_completed_successfully" formatted="false">Your withdrawal request was completed successfully.</string>
+    
+    <string name="text_choose_us_after_the_review_is_passed_the_money_wil" formatted="false">Choose us | After the review is passed, the money will be credited immediately. | Fast and easy—application done in under 5 minutes.</string>
+    
+    <string name="text_128" formatted="false">128</string>
+    
+    <string name="text_please_verify_that_your_receiving_account_is_corre" formatted="false">Please verify that your receiving account is correct. You can also apply for other products directly.</string>
+    
+    <string name="text_ghc_100_000" formatted="false">GHC 100,000</string>
+    
+    <string name="text_amount_up_to_1_000_000_ghs" formatted="false">Amount up to 1,000,000 GHS</string>
+    
+    <string name="text_date_of_loan_received" formatted="false">Date of Loan Received</string>
+    
+    <string name="text_20_days" formatted="false">20 Days</string>
+    
+    <string name="text_almost_done_the_system_is_calculating_your_credit" formatted="false">Almost done! The system is calculating your credit eligibility. Please wait a moment.</string>
+    
+    <string name="text_your_feedback_motivates_us_we_ll_keep_optimizing_o" formatted="false">Your feedback motivates us. We’ll keep optimizing our solutions to bring you the best possible experience.</string>
+    
+    <string name="text_19_10_2024" formatted="false">19-10-2024</string>
+    
+    <string name="text_amount" formatted="false">Amount</string>
+    
+    <string name="text_full_service_fee_38062" formatted="false">Full Service Fee</string>
+    
+    <string name="text_3_562be" formatted="false">3</string>
+    
+    <string name="text_how_do_you_rate_your_experience_with_our_app" formatted="false">How do you rate your experience with our app?</string>
+    
+    <string name="text_23_03_2020" formatted="false">23-03-2020</string>
+    
+    <string name="text_0_6ffc8" formatted="false">0</string>
+    
+    <string name="text_repayment_date" formatted="false">Repayment Date :</string>
+    
+    <string name="text_secure_credit_lending_your_financial_assistant_hel" formatted="false">Secure credit lending, your financial assistant | Help you solve financial problems</string>
+    
+    <string name="text_recommended_products" formatted="false">Recommended Products</string>
+    
+    <string name="text_amount_up_to_1_000_000_ghc" formatted="false">Amount up to 1,000,000 GHC</string>
+    
+    <string name="text_your_application_was_not_approved_please_try_again" formatted="false">
+        <font color="#192048">Your application was not approved. Please try again in </font>
+        <font color="#192048">
+            <b>6</b>
+        </font>
+        <font color="#192048"> days.</font>
+    </string>
+    
+    <string name="text_disbursement_for_your_application_is_underway_you" formatted="false">Disbursement for your application is underway. You will be informed when it\'s completed.</string>
+    
+    <string name="text_instant_withdrawal_open_limited_time_chance_expire" formatted="false">Instant withdrawal open! Limited-time chance—expired quotas won’t count, act now!</string>
+    
+    <string name="text_service_fee" formatted="false">Service Fee</string>
+    
+    <string name="text_dear_user_please_do_not_leave" formatted="false">Dear user, please do not leave!</string>
+    
+    <string name="text_withdrawal_amount" formatted="false">Withdrawal Amount</string>
+    
+    <string name="text_ghs_400" formatted="false">GHS 400</string>
+    
+    <string name="text_view_order" formatted="false">View Order</string>
+    
+    <string name="text_2_charge" formatted="false">2% charge</string>
+    
+    <string name="text_you_have_30_minutes_before_your_limit_expires" formatted="false">
+        <font color="#120d01">You have </font>
+        <font color="#120d01">30</font>
+        <font color="#120d01"> minutes before your limit expires.</font>
+    </string>
+    
+    <string name="text_set_up" formatted="false">Set Up</string>
+    
+    <string name="text_time_cycle" formatted="false">Time Cycle</string>
+    
+    <string name="text_ghs_100_000_ghs_3_000_000" formatted="false">GHS 100,000 - GHS 3,000,000</string>
+    
+    <string name="text_extension_fee" formatted="false">Extension Fee</string>
+    
+    <string name="text_account" formatted="false">Account</string>
+    
+    <string name="text_apply_now" formatted="false">Apply Now</string>
+    
+    <string name="text_ghs_100_000" formatted="false">GHS 100,000</string>
+    
+    <string name="text_your_application_has_been_successfully_submitted" formatted="false">Your application has been successfully submitted.</string>
+    
+    <string name="text_ghc_400" formatted="false">GHC 400</string>
+    
+    <string name="text_secure_credit_lending_your_financial_assistant" formatted="false">Secure credit lending, your financial assistant</string>
+    
+    <string name="text_instant_withdrawal_open_limited_time_chance_expire_2dbc8" formatted="false">Instant withdrawal open! Limited-time chance—expired quotas won’t count, act now! | Credit Cedi</string>
+    
+    <string name="text_ght_25_000" formatted="false">GHT 25,000</string>
+    
+    <string name="text_repayment_date_a244a" formatted="false">Repayment Date</string>
+    
+    <string name="text_ghs_300_000_00" formatted="false">GHS 300,000.00</string>
+    
+    <string name="text_confirm_payment_of_the_extension_fee_to_temporaril" formatted="false">Confirm payment of the extension fee to temporarily defer full loan repayment.</string>
+    
+    <string name="text_ghs_500_000" formatted="false">GHS 500,000</string>
+    
+    <string name="text_we_value_your_input_let_us_know_what_you_thinkwe_v" formatted="false">We value your input—let us know what you thinkWe value your input—let us know what you thinkWe value your input—let us know what you think</string>
+    
+    <string name="text_22" formatted="false">22%</string>
+    
+    <string name="text_begin_application" formatted="false">Begin Application</string>
+    
+    <string name="text_sadly_your_application_was_not_approved_you_may_tr" formatted="false">Sadly, your application was not approved. You may try again in 6 days.</string>
+    
+    <string name="text_7_days" formatted="false">7 Days</string>
+    
+    <string name="text_thank_you_for_choosing_this_product_we_will_do_our" formatted="false">Thank you for choosing this product. | We will do our best to help you with your financial difficulties.</string>
+    
+    <string name="text_16_days" formatted="false">16 Days</string>
+    
+    <string name="text_thank_you_for_choosing_this_product" formatted="false">Thank you for choosing this product.</string>
+    
+    <string name="text_123456789123456789" formatted="false">123456789123456789</string>
+    
+    <string name="text_fast_track_your_approval_submit_within_5_minutes_f" formatted="false">
+        <font color="#999999">Fast-track your approval — submit within </font>
+        <font color="#120d01">5 minutes</font>
+        <font color="#999999"> for a </font>
+        <font color="#120d01">99%</font>
+        <font color="#999999"> chance.</font>
+    </string>
+    
+    <string name="text_allow_access_to_sms_call_logs_calendar_and_locatio" formatted="false">Allow access to SMS, call logs, calendar, and location to support an increased credit limit.</string>
+    
+    <string name="text_apply_now_for_priority_review_and_up_to_99_approva" formatted="false">
+        <font color="#120d01">Apply now for priority review and up to </font>
+        <font color="#120d01">
+            <b>99%</b>
+        </font>
+        <font color="#120d01"> approval rate.</font>
+    </string>
+    
+    <string name="text_we_will_do_our_best_to_help_you_with_your_financia" formatted="false">We will do our best to help you with your financial difficulties.</string>
+    
+    <string name="text_repay_now" formatted="false">Repay Now</string>
+    
+    <string name="text_you_are_eligible_to_reapply_for_a_loan" formatted="false">You are eligible to reapply for a loan.</string>
+    
+    <string name="text_withdraw_now_for_instant_payout_limited_opportunit" formatted="false">Withdraw now for instant payout! Limited opportunity – expired quotas will become invalid, don’t miss out.</string>
+    
+    <string name="text_your_information_is_being_verified_and_your_quota" formatted="false">Your information is being verified, and your quota is being matched. The top limit could be yours.</string>
+    
+    <string name="text_payment_completed" formatted="false">Payment Completed</string>
+    
+    <string name="text_pending_withdrawal" formatted="false">Pending withdrawal</string>
+    
+    <string name="text_you_have_not_provided_an_application_yet" formatted="false">You have not provided an application yet.</string>
+    
+    <string name="text_repay_extension" formatted="false">Repay Extension</string>
+    
+    <string name="text_slide_to_adjust_amount" formatted="false">Slide to Adjust Amount</string>
+    
+    <string name="text_overdue_days" formatted="false">Overdue Days</string>
+    
+    <string name="text_highest_apr" formatted="false">Highest APR</string>
+    
+    <string name="text_how_would_you_rate_us_please_select_a_rating_betwe" formatted="false">How would you rate us? Please select a rating between 1 and 5.</string>
+    
+    <string name="text_fast_and_easy_application_done_in_under_5_minutes" formatted="false">Fast and easy—application done in under 5 minutes.</string>
+    
+    <string name="text_choose_us_unlock_better_credit_options_by_paying_o" formatted="false">Choose us | Unlock better credit options by paying on schedule. | Apply now for priority review and up to 99% approval rate.</string>
+    
+    <string name="text_50_000" formatted="false">50,000</string>
+    
+    <string name="text_ghs_50_000" formatted="false">GHS 50,000</string>
+    
+    <string name="text_ghc_100_000_ghc_3_000_000" formatted="false">GHC 100,000 - GHC 3,000,000</string>
+    
+    <string name="text_withdraw_today_receive_funds_instantly_make_your_c" formatted="false">Withdraw today, receive funds instantly! Make your cash flow effortless—don’t wait too long.</string>
+    
+    <string name="text_exiting_before_the_credit_matching_process_is_comp" formatted="false">Exiting before the credit-matching process is complete may impact the outcome and lower your credit limit. Are you sure you wish to exit?</string>
+    
+    <string name="text_received_amount_2db3a" formatted="false">Received Amount</string>
+    
+    <string name="text_all_orders" formatted="false">All Orders</string>
+    <string name="order_filter_pending" formatted="false">Pending</string>
+    <string name="order_filter_disbursing" formatted="false">Disbursing</string>
+    <string name="order_filter_to_be_repaid" formatted="false">To be repaid</string>
+    <string name="order_filter_repaid" formatted="false">Repaid</string>
+    <string name="order_filter_denied" formatted="false">Denied</string>
+    <string name="order_filter_overdue" formatted="false">Overdue</string>
+    
+    <string name="text_help_you_solve_financial_problems" formatted="false">Help you solve financial problems</string>
+    
+    <string name="text_choose_us" formatted="false">Choose us</string>
+    
+    <string name="text_5_de37b" formatted="false">5</string>
+    
+    <string name="text_note_this_is_not_a_partial_repayment" formatted="false">Note : This is not a partial repayment.</string>
+    
+    <string name="text_ghc_300_000_00" formatted="false">GHC 300,000.00</string>
+    
+    <string name="text_91_360_days" formatted="false">91-360 days</string>
+    
+    <string name="text_any_claim_that_no_repayment_is_required_after_an_e" formatted="false">Any claim that no repayment is required after an extension is false.</string>
+    
+    <string name="text_we_value_your_input_let_us_know_what_you_think" formatted="false">We value your input—let us know what you think…</string>
+    
+    <string name="text_we_are_currently_evaluating_your_loan_application" formatted="false">We are currently evaluating your loan application and will notify you promptly after the review.</string>
+    
+    <string name="text_withdraw_now" formatted="false">Withdraw Now</string>
+    
+    <string name="text_after_the_review_is_passed_the_money_will_be_credi" formatted="false">After the review is passed, the money will be credited immediately.</string>
+    
+    <string name="text_please_ensure_your_face_is_clearly_visible_in_the" formatted="false">Please ensure your face is clearly visible in the viewfinder and upload a clear photo.</string>
+    
+    <string name="text_1997" formatted="false">1997</string>
+    
+    <string name="text_upload_a_photo_of_the_front_of_your_driver_s_licen" formatted="false">Upload a photo of the front of your driver’s license.</string>
+    
+    <string name="text_id_card_number" formatted="false">ID Card Number</string>
+    
+    <string name="text_position_the_card_inside_the_frame_and_capture_a_p" formatted="false">Position the card inside the frame and capture a photo.</string>
+    
+    <string name="text_work_title" formatted="false">Work Title</string>
+    
+    <string name="text_enter_e_mail" formatted="false">Enter E-mail</string>
+    
+    <string name="text_select_certificate_type" formatted="false">Select Certificate Type</string>
+    
+    <string name="text_next" formatted="false">Next</string>
+    
+    <string name="text_you_may_switch_to_other_certificates" formatted="false">You may switch to other certificates.</string>
+    
+    <string name="text_authenticate" formatted="false">Authenticate</string>
+    
+    <string name="text_whatsapp_account" formatted="false">WhatsApp Account</string>
+    
+    <string name="text_e_mail" formatted="false">E-mail</string>
+    
+    <string name="text_gha_xxxxxxxxx_x" formatted="false">
+        <font color="#120d01">GHA-</font>
+        <font color="#999999">XXXXXXXXX-X</font>
+    </string>
+    
+    <string name="text_gmail_com" formatted="false">@gmail.com</string>
+    
+    <string name="text_educational_status" formatted="false">Educational Status</string>
+    
+    <string name="text_month" formatted="false">Month</string>
+    
+    <string name="text_university_degree" formatted="false">University Degree</string>
+    
+    <string name="text_input_your_address_to_begin_search" formatted="false">Input your address to begin search</string>
+    
+    <string name="text_providing_complete_and_accurate_information_increa" formatted="false">Providing complete and accurate information increases your chances of loan approval.</string>
+    
+    <string name="text_primary_contact_person_1" formatted="false">Primary Contact Person 1</string>
+    
+    <string name="text_masters_degree" formatted="false">Masters Degree</string>
+    
+    <string name="text_primary_contact_person_4" formatted="false">Primary Contact Person 4</string>
+    
+    <string name="text_monthly_remuneration" formatted="false">Monthly Remuneration</string>
+    
+    <string name="text_kyc_info" formatted="false">KYC info</string>
+    
+    <string name="text_doctorate_degree" formatted="false">Doctorate Degree</string>
+    
+    <string name="text_04" formatted="false">04</string>
+    
+    <string name="text_please_provide_a_clear_image_of_the_front_of_your" formatted="false">Please provide a clear image of the front of your driving license.</string>
+    
+    <string name="text_21" formatted="false">21</string>
+    
+    <string name="text_reshoot" formatted="false">Reshoot</string>
+    
+    <string name="text_22_7eb32" formatted="false">22</string>
+    
+    <string name="text_upload_a_clear_selfie" formatted="false">Upload a clear selfie</string>
+    
+    <string name="text_type_of_relationship" formatted="false">Type of Relationship</string>
+    
+    <string name="text_day" formatted="false">Day</string>
+    
+    <string name="text_enter_name" formatted="false">Enter Name</string>
+    
+    <string name="text_you_can_receive_a_large_sum_of_cash_after_completi" formatted="false">You can receive a large sum of cash after completing the verification.</string>
+    
+    <string name="text_marriage_situation" formatted="false">Marriage Situation</string>
+    
+    <string name="text_aaaaaaaaaaaaaaa" formatted="false">AaaaaAaaaaAaaaa</string>
+    
+    <string name="text_high_school" formatted="false">High School</string>
+    
+    <string name="text_primary_contact_person_2" formatted="false">Primary Contact Person 2</string>
+    
+    <string name="text_please_do_not_exit" formatted="false">Please do not exit.</string>
+    
+    <string name="text_06" formatted="false">06</string>
+    
+    <string name="text_there_was_an_error_with_your_upload_please_try_aga" formatted="false">There was an error with your upload. Please try again.</string>
+    
+    <string name="text_payroll_cycle" formatted="false">Payroll Cycle</string>
+    
+    <string name="text_wage_disbursement_cycle" formatted="false">Wage Disbursement Cycle</string>
+    
+    <string name="text_industry" formatted="false">Industry</string>
+    
+    <string name="text_years" formatted="false">Years</string>
+    
+    <string name="text_driving_license_number" formatted="false">Driving license Number</string>
+    
+    <string name="text_05" formatted="false">05</string>
+    
+    <string name="text_secondary_school" formatted="false">Secondary School</string>
+    
+    <string name="text_1999" formatted="false">1999</string>
+    
+    <string name="text_voter_card_number" formatted="false">Voter Card Number</string>
+    
+    <string name="text_personal_info" formatted="false">Personal info</string>
+    
+    <string name="text_wallet" formatted="false">Wallet</string>
+    
+    <string name="text_gender_option" formatted="false">Gender Option</string>
+    
+    <string name="text_1998" formatted="false">1998</string>
+    
+    <string name="text_enter_a_9_or_10_digit_id" formatted="false">Enter a 9 or 10-digit ID</string>
+    
+    <string name="text_contact_info" formatted="false">Contact info</string>
+    
+    <string name="text_primary_contact_person_3" formatted="false">Primary Contact Person 3</string>
+    
+    <string name="text_primary_school" formatted="false">Primary School</string>
+    
+    <string name="text_20" formatted="false">20</string>
+    
+    <string name="text_detailed_address" formatted="false">Detailed Address</string>
+    
+    <string name="text_date_of_birth" formatted="false">Date of Birth</string>
+    
+    <string name="text_uneducated" formatted="false">Uneducated</string>
+
+</resources>

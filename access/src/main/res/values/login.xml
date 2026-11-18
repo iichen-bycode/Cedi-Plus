@@ -1,0 +1,4 @@
+<resources>
+    <string name="login_agreement">By proceeding, you confirm your agreement to our <u>Terms &amp; Conditions</u> and <u>Privacy Policy</u>.</string>
+    <string name="otp_seconds">%1$d s</string>
+</resources>

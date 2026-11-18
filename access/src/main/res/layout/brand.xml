@@ -1,0 +1,3 @@
+<com.creditcedi.core.DesignStage xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:tag="512,512" android:background="#ffffff" android:focusableInTouchMode="true">
+    <ImageView android:src="@drawable/art_973b41726551" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_width="512dp" android:layout_height="512dp" android:layout_marginLeft="0dp" android:layout_marginTop="0dp" />
+</com.creditcedi.core.DesignStage>

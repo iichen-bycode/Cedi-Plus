@@ -1,0 +1,4 @@
+<?xml version='1.0' encoding='utf-8'?>
+<com.creditcedi.core.DesignStage xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:tag="375,812" android:background="#ffffff" android:focusableInTouchMode="true">
+    <ImageView android:src="@drawable/art_bfbbf4d915ed" android:scaleType="fitXY" android:importantForAccessibility="yes" android:tag="@string/text_do_you_urgently_need_a_loan_do_you_urgently_need_a" android:contentDescription="@string/text_do_you_urgently_need_a_loan_do_you_urgently_need_a" android:layout_width="375dp" android:layout_height="812dp" android:layout_marginLeft="0dp" android:layout_marginTop="0dp" />
+</com.creditcedi.core.DesignStage>
