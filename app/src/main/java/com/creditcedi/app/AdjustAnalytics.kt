@@ -2,13 +2,17 @@ package com.creditcedi.app
 
 import com.adjust.sdk.Adjust
 import com.adjust.sdk.AdjustEvent
+import com.facebook.appevents.AppEventsConstants
+import com.facebook.appevents.AppEventsLogger
+import com.facebook.FacebookSdk
+import android.content.Context
 import com.creditcedi.core.Screen
 
 /** App identity and API signing configuration supplied for this Cedi Plus build. */
 internal object CediPlusConfig {
     const val HEADER_PACKAGE = BuildConfig.API_HEADER_PACKAGE
     const val API_SIGNING_KEY = BuildConfig.API_SIGNING_KEY
-    const val API_SIGNING_KEY_PARAMETER = "cp=$API_SIGNING_KEY"
+    const val API_SIGNING_KEY_PARAMETER = "lc=$API_SIGNING_KEY"
 }
 
 /** Adjust events use the event tokens configured for the Cedi Plus app. */
@@ -42,13 +46,19 @@ internal object AdjustAnalytics {
     }
 
     /** Call only when the login response reports that this is a newly registered user. */
-    fun loginResponse(isRegistered: Boolean) {
-        if (isRegistered) track(REGISTERED)
+    fun loginResponse(context: Context, isRegistered: Boolean) {
+        if (isRegistered) {
+            track(REGISTERED)
+            facebookEvent(context, AppEventsConstants.EVENT_NAME_COMPLETED_REGISTRATION)
+        }
     }
 
     /** Call with the first-loan flag returned by the successful loan application response. */
-    fun loanApplicationResponse(isFirstApply: Boolean) {
-        if (isFirstApply) track(FIRST_LOAN_APPLICATION)
+    fun loanApplicationResponse(context: Context, isFirstApply: Boolean) {
+        if (isFirstApply) {
+            track(FIRST_LOAN_APPLICATION)
+            facebookEvent(context, AppEventsConstants.EVENT_NAME_ADDED_TO_CART)
+        }
     }
 
     /** Call after the backend confirms the loan was successfully issued. */
@@ -59,5 +69,13 @@ internal object AdjustAnalytics {
 
     private fun track(token: String) {
         Adjust.trackEvent(AdjustEvent(token))
+    }
+
+    private fun facebookEvent(context: Context, eventName: String) {
+        if (BuildConfig.FACEBOOK_APP_ID.isNotBlank() &&
+            BuildConfig.FACEBOOK_CLIENT_TOKEN.isNotBlank() && FacebookSdk.isInitialized()
+        ) {
+            runCatching { AppEventsLogger.newLogger(context.applicationContext).logEvent(eventName) }
+        }
     }
 }

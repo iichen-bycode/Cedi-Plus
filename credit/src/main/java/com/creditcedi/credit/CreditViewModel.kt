@@ -17,10 +17,6 @@ class CreditViewModel {
     fun orderStatusFilter(requestStatus: Int?) =
         OrderStatusFilter.values().firstOrNull { it.requestStatus == requestStatus } ?: OrderStatusFilter.ALL
 
-    /** The backend treats All orders as an omitted/null orderStatus parameter. */
-    fun orderListParameters(filter: OrderStatusFilter): Map<String, Int> =
-        filter.requestStatus?.let { mapOf("orderStatus" to it) } ?: emptyMap()
-
     fun applicationDestination(signedIn: Boolean, hasOrder: Boolean) = when {
         !signedIn -> SIGN_IN
         hasOrder -> ORDER_DETAIL
