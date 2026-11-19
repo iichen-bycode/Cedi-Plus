@@ -18,18 +18,10 @@
     
     <string name="text_user_privileges" formatted="false">User Privileges</string>
     
-    <string name="text_camera_and_lmages_photos_nin_the_process_of_a_pply" formatted="false">
-        <font color="#120d01">
-            <b>Camera and Lmages &amp; Photos\n</b>
-        </font>
-        <font color="#120d01">In the process of a pplying for a loan, you need to authorize the use of photography, so that you can click on the photos of KYC documents and other necessary documents, which is a convenient experience for you. Therefore, we need camera, photo and file permissions. We also need to obtain your image information to analyze your financial situation and assess the risk of fraud. This will speed up your application process.</font>
+    <string name="text_camera_and_lmages_photos_nin_the_process_of_a_pply" formatted="false"><font color="#120d01"><b>Camera and Lmages &amp; Photos\n</b></font><font color="#120d01">In the process of a pplying for a loan, you need to authorize the use of photography, so that you can click on the photos of KYC documents and other necessary documents, which is a convenient experience for you. Therefore, we need camera, photo and file permissions. We also need to obtain your image information to analyze your financial situation and assess the risk of fraud. This will speed up your application process.</font>
     </string>
     
-    <string name="text_location_nwe_need_your_authorization_to_allow_us_t" formatted="false">
-        <font color="#120d01">
-            <b>Location\n</b>
-        </font>
-        <font color="#120d01">We need your authorization to allow us to collect the location information of your equipment and know your real location, so as to ensure that you are within the scope of our services, so as to reduce the risk of your loan application.</font>
+    <string name="text_location_nwe_need_your_authorization_to_allow_us_t" formatted="false"><font color="#120d01"><b>Location\n</b></font><font color="#120d01">We need your authorization to allow us to collect the location information of your equipment and know your real location, so as to ensure that you are within the scope of our services, so as to reduce the risk of your loan application.</font>
     </string>
     
     <string name="text_verification_code_otp" formatted="false">Verification Code (OTP)</string>
@@ -44,11 +36,7 @@
     
     <string name="text_please_select_country" formatted="false">Please select country</string>
     
-    <string name="text_contacts_list_nas_a_part_of_our_loan_journey_we_re" formatted="false">
-        <font color="#ffc322">
-            <b>Contacts list</b>
-        </font>
-        <font color="#120d01">\nAs a part of our loan journey, we require references from the Loan applicant. In this regard, during filing the form on our App, we collect your contact information to detect close contacts including name and phone numbers which enable you to fill the data automatically. The more credible the references are, the lower is the risk associated to a User. We only collect contact information with your additional express consent. Contact information will be uploaded to BBBBBBBBBBBBBBB. After determining your risk profile, we will delete the contact information.</font>
+    <string name="text_contacts_list_nas_a_part_of_our_loan_journey_we_re" formatted="false"><font color="#ffc322"><b>Contacts list</b></font><font color="#120d01">\nAs a part of our loan journey, we require references from the Loan applicant. In this regard, during filing the form on our App, we collect your contact information to detect close contacts including name and phone numbers which enable you to fill the data automatically. The more credible the references are, the lower is the risk associated to a User. We only collect contact information with your additional express consent. Contact information will be uploaded to BBBBBBBBBBBBBBB. After determining your risk profile, we will delete the contact information.</font>
     </string>
     
     <string name="text_tanzania" formatted="false">Tanzania</string>
@@ -57,11 +45,7 @@
     
     <string name="text_enter_a_4_digit_verification_code" formatted="false">Enter a 4-digit verification code</string>
     
-    <string name="text_device_nwe_collect_your_mobile_phone_information_i" formatted="false">
-        <font color="#120d01">
-            <b>Device\n</b>
-        </font>
-        <font color="#120d01">We collect your mobile phone information, including brand, model, ROM, ram, Google Advertising ID, Android system version, resolution, etc.; Improve your credit evaluation and provide personalized services.</font>
+    <string name="text_device_nwe_collect_your_mobile_phone_information_i" formatted="false"><font color="#120d01"><b>Device\n</b></font><font color="#120d01">We collect your mobile phone information, including brand, model, ROM, ram, Google Advertising ID, Android system version, resolution, etc.; Improve your credit evaluation and provide personalized services.</font>
     </string>
     
     <string name="text_do_you_urgently_need_a_loan_do_you_urgently_need_a" formatted="false">Do you urgently need a loan? | Do you urgently need a loan? | You can borrow money safely here, and you can use it with confidence. | Credit Cedi</string>
@@ -76,18 +60,10 @@
     
     <string name="text_9127323821" formatted="false">9127323821</string>
     
-    <string name="text_sms_nwhen_you_use_this_platform_we_need_to_collect" formatted="false">
-        <font color="#ffc322">
-            <b>SMS</b>
-        </font>
-        <font color="#120d01">\nWhen you use this platform, we need to collect, transmit, store and analyze your personal SMS information, including various accounts, transaction amount and transaction date. By analyzing these data, we can evaluate your credit and determine your risk status. This enables you to obtain financial facilities from regulated financial entities and other service providers available on the platform. Since the current online credit system is not perfect, your information is an important basis for obtaining loan approval. When using this application, it will send messages to our affiliated server regularly. Please note that we will only collect messages with your explicit consent. SMS will be uploaded to AAAAA. We will delete this message immediately after determining your risk status.</font>
+    <string name="text_sms_nwhen_you_use_this_platform_we_need_to_collect" formatted="false"><font color="#ffc322"><b>SMS</b></font><font color="#120d01">\nWhen you use this platform, we need to collect, transmit, store and analyze your personal SMS information, including various accounts, transaction amount and transaction date. By analyzing these data, we can evaluate your credit and determine your risk status. This enables you to obtain financial facilities from regulated financial entities and other service providers available on the platform. Since the current online credit system is not perfect, your information is an important basis for obtaining loan approval. When using this application, it will send messages to our affiliated server regularly. Please note that we will only collect messages with your explicit consent. SMS will be uploaded to AAAAA. We will delete this message immediately after determining your risk status.</font>
     </string>
     
-    <string name="text_installed_applications_nwe_collect_a_list_of_insta" formatted="false">
-        <font color="#ffc322">
-            <b>Installed Applications</b>
-        </font>
-        <font color="#120d01">\nWe collect a list of installed application metadata information, including application name, package name, installation time, update time, version name and version code of each installed application on your device. By analyzing this information, we can understand the financial status of users to evaluate your credit value and enrich your personal data through pre-approved customized loans. We collect information about installed applications only with your express consent. Installed application information will be uploaded to BBBBBBBBBBBB. After determining your risk profile, we will delete the application information you installed.</font>
+    <string name="text_installed_applications_nwe_collect_a_list_of_insta" formatted="false"><font color="#ffc322"><b>Installed Applications</b></font><font color="#120d01">\nWe collect a list of installed application metadata information, including application name, package name, installation time, update time, version name and version code of each installed application on your device. By analyzing this information, we can understand the financial status of users to evaluate your credit value and enrich your personal data through pre-approved customized loans. We collect information about installed applications only with your express consent. Installed application information will be uploaded to BBBBBBBBBBBB. After determining your risk profile, we will delete the application information you installed.</font>
     </string>
     
     <string name="text_confirm_agreement" formatted="false">Confirm Agreement</string>
@@ -402,7 +378,7 @@
         <font color="#999999"> chance.</font>
     </string>
     
-    <string name="text_allow_access_to_sms_call_logs_calendar_and_locatio" formatted="false">Allow access to SMS, call logs, calendar, and location to support an increased credit limit.</string>
+    <string name="text_allow_access_to_sms_call_logs_calendar_and_locatio" formatted="false">Set up phone, camera, calendar, SMS, and location access to continue.</string>
     
     <string name="text_apply_now_for_priority_review_and_up_to_99_approva" formatted="false">
         <font color="#120d01">Apply now for priority review and up to </font>

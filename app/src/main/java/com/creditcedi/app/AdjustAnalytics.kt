@@ -12,7 +12,7 @@ import com.creditcedi.core.Screen
 internal object CediPlusConfig {
     const val HEADER_PACKAGE = BuildConfig.API_HEADER_PACKAGE
     const val API_SIGNING_KEY = BuildConfig.API_SIGNING_KEY
-    const val API_SIGNING_KEY_PARAMETER = "lc=$API_SIGNING_KEY"
+    const val API_SIGNING_KEY_PARAMETER = "cp=$API_SIGNING_KEY"
 }
 
 /** Adjust events use the event tokens configured for the Cedi Plus app. */

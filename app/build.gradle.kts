@@ -11,6 +11,7 @@ val localProperties = Properties().apply {
 }
 val apiSigningKey = localProperties.getProperty("cedi.signingKey", "")
 val apiBaseUrl = localProperties.getProperty("cedi.apiBaseUrl", "https://api-ghana.kamfams.com")
+val apiLogEnabled = localProperties.getProperty("cedi.apiLogEnabled", "false").toBoolean()
 val apiHeaderPackage = localProperties.getProperty("cedi.headerPackage", "tuopes.nmbesf.truehgc")
 val facebookAppId = localProperties.getProperty("cedi.facebookAppId", "")
 val facebookClientToken = localProperties.getProperty("cedi.facebookClientToken", "")
@@ -38,6 +39,7 @@ android {
         buildConfigField("String", "API_SIGNING_KEY", "\"$apiSigningKey\"")
         buildConfigField("String", "API_HEADER_PACKAGE", "\"$apiHeaderPackage\"")
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("boolean", "API_LOG_ENABLED", apiLogEnabled.toString())
         buildConfigField("String", "FACEBOOK_APP_ID", "\"$facebookAppId\"")
         buildConfigField("String", "FACEBOOK_CLIENT_TOKEN", "\"$facebookClientToken\"")
         resValue("string", "facebook_app_id", facebookAppId)

@@ -6,12 +6,15 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import com.google.android.gms.ads.identifier.AdvertisingIdClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONException
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -53,6 +56,8 @@ internal object ApiField {
     const val FEATURE_TYPE = "N72HBUwMcWzuscNUqIUJFpc"
     const val RECOMMENDED = "KdpW3jUCxJ7Mbs2iJwOb4HIS7yeg7UmKs4C"
     const val AUTH_STEP = "CUzM2bydF8mkwf8jWg1U"
+    const val AMOUNT_MIN = "J5WZParTdj5FQCByk3GgwBHyJJ"
+    const val AMOUNT_MAX = "gQyrOdZiHx"
     const val FRONT_IMAGE = "ylRFC8yXcjzStKHYQFx72YUiolT"
     const val BACK_IMAGE = "tGVPdt"
     const val FULL_NAME = "AQJRSp6DuHuCyOW8CRU"
@@ -70,8 +75,17 @@ internal object ApiField {
     const val PAN_IMAGE = "UcVoDXTasKB23y5TqyGMJpxdO0LvCAxXbOD7"
     const val PAN_NUMBER = "c7GlXHofp6NtizcAFb"
     const val APPLY_AMOUNT = "ki841Jze78nD2axH5xOGATauVUVNt5UE3"
+    const val USER_GENDER_LIST = "rnXXCVnKmucL5C3dFJD9sFaBTFH6v0pGG6JpJ"
+    const val EDUCATION_LIST = "Hz1XpUs4gx6yp42AHN517reR6MCOA4I6wMV8i"
+    const val MARRIAGE_STATUS_LIST = "D8QoT207Pv6mLcsobVxVWJshiOj5IfKtdjyk"
+    const val WORK_TITLE_LIST = "cgkC4v34hBTVb63v"
+    const val SALARY_TYPE_LIST = "EjlJVYtvqorAqTbz7RPgq4FqmmcAA9dO0"
+    const val INDUSTRY_LIST = "AVM7Unel1vVJsJWfjasB4V5oewaVb0I"
+    const val MONTHLY_SALARY_LIST = "E5RbWiXqe"
+    const val RELATION_LIST = "FI7ihlEj0"
+    const val WALLET_TYPE_LIST = "RzPLUvCX2pUGHAvLO"
     const val CONTACTS = "V2riUJ2sLZ13f0p30lQ3mnf"
-    const val CONTACT_COUNT = "IWnfliS3dz9Jf6R"
+    const val CONTACT_NUM = "IWnfliS3dz9Jf6R"
     const val CONTACT_NAME = "EnNXM1QVA3NkDNCE8MuXhKS"
     const val CONTACT_PHONE = "FzAqXfNV1POfpuFPPutDGSQErIOHm"
     const val CONTACT_RELATION = "b8XeMSKRbifVmINIWn"
@@ -130,7 +144,11 @@ internal object ApiField {
     const val LOW_SCORE_TIPS = "bWUJKvKWqYhRjm8j7FKJtqeanr"
     const val DEVICE_DATA = "rH5ZuZZvEw8yRgFfySOSuw"
     const val EVENT_LIST = "rClAKpPexTNJ32vVZXYmlvVK"
-    const val EVENT_PARAMETER = "l9x53xpMq5IDuGQyy8nwf8LZtcze5c"
+    const val EVENT_PARAMETER = "param1"
+    const val EVENT_PARAMETER_2 = "param2"
+    const val EVENT_PARAMETER_3 = "param3"
+    const val EVENT_PARAMETER_4 = "param4"
+    const val EVENT_TYPE = "type"
 
     const val HEADER_LANGUAGE = "zWBh4QqCc7nn4"
     const val HEADER_COUNTRY = "cYMOErLbBAJD1wxAedGd1ds6eBwpE"
@@ -154,13 +172,31 @@ internal object ApiField {
     const val DEVICE_FINGERPRINT = "osIrCvAADjbAyoyivDdl4cGvF77oLCKlJNh24"
 }
 
-internal enum class ApiRoute(val code: String) {
-    FIRST_OPEN("2.3.1.0"), PRODUCT_LIST("2.3.1.1"), SEND_CODE("2.3.1.2"), LOGIN("2.3.1.3"),
-    LOGOUT("2.3.1.4"), USER_INFO("2.3.1.5"), AUTH_INFO("2.3.1.7"), SAVE_AUTH("2.3.1.8"),
-    UPDATE_WALLET("2.3.1.9"), AWS_UPLOAD_INFO("2.3.1.10"), SAVE_LIVENESS("2.3.1.12"),
-    SPACE_INFO("2.3.2.0"), CREATE_ORDER("2.3.2.1"), ORDER_LIST("2.3.2.2"), ORDER_DETAIL("2.3.2.3"),
-    SAVE_FEEDBACK("2.3.2.4"), FEEDBACK_LIST("2.3.2.5"), REPAYMENT_PATH("2.3.2.6"), EXTENSION_INFO("2.3.2.7"),
-    DEVICE_REFRESH("2.3.2.8"), RATING("2.3.1.32"), EVENT_ANONYMOUS("2.3.1.98"), EVENT_AUTHENTICATED("2.3.2.99")
+internal enum class ApiRoute(val code: String, val mappingUri: String) {
+    FIRST_OPEN("2.3.1.0", "/qXZpWf/UfhvkM/kjPkSK"),
+    PRODUCT_LIST("2.3.1.1", "/qXZpWf/dAnVzm/cgqSJi"),
+    SEND_CODE("2.3.1.2", "/qXZpWf/RNCorx/tgSPqa"),
+    LOGIN("2.3.1.3", "/qXZpWf/zanBRS/zoZCoe"),
+    LOGOUT("2.3.1.4", "/qXZpWf/rDRzHG/AaaUDn"),
+    USER_INFO("2.3.1.5", "/qXZpWf/VrthxQ/RAAfog"),
+    AUTH_INFO("2.3.1.7", "/qXZpWf/AhqmjG/sLgBLC"),
+    SAVE_AUTH("2.3.1.8", "/qXZpWf/swxXyr/XhMsUk"),
+    UPDATE_WALLET("2.3.1.9", "/qXZpWf/GjLBvG/bqMDdZ"),
+    AWS_UPLOAD_INFO("2.3.1.10", "/qXZpWf/WpfmFa/euNMYh"),
+    SAVE_LIVENESS("2.3.1.12", "/qXZpWf/wUKfaX/NNzSMA"),
+    SPACE_INFO("2.3.2.0", "/qXZpWf/DJWyny/qKSoeR"),
+    CREATE_ORDER("2.3.2.1", "/qXZpWf/yRLsuU/nkweeR"),
+    ORDER_LIST("2.3.2.2", "/qXZpWf/uRyFBz/nVuBLB"),
+    ORDER_DETAIL("2.3.2.3", "/qXZpWf/piTSLb/RLrAFC"),
+    SAVE_FEEDBACK("2.3.2.4", "/qXZpWf/jebaGF/nwpPJa"),
+    FEEDBACK_LIST("2.3.2.5", "/qXZpWf/GAmuSs/oYpMNB"),
+    REPAYMENT_PATH("2.3.2.6", "/qXZpWf/wJzAsh/TFCwPx"),
+    EXTENSION_INFO("2.3.2.7", "/qXZpWf/BNNAJV/CEebPb"),
+    DEVICE_REFRESH("2.3.2.8", "/qXZpWf/pTyJvo/PNzLBe"),
+    RATING("2.3.1.32", "/qXZpWf/crkmon/DABwDJ"),
+    // The mapping sheet labels this API 2.3.1.99; its name matches the 2.3.1.98 guide section.
+    EVENT_ANONYMOUS("2.3.1.98", "/qXZpWf/dsGgZh/zuDgEf"),
+    EVENT_AUTHENTICATED("2.3.2.99", "/qXZpWf/WQqLZu/ptWYwp")
 }
 
 internal open class ApiException(message: String, val code: Int? = null) : Exception(message)
@@ -177,12 +213,25 @@ internal class CediApi(private val context: Context) {
 
     suspend fun firstOpen() = post(ApiRoute.FIRST_OPEN)
     suspend fun firstOpenIfNeeded() {
-        if (!preferences.getBoolean("firstOpenSent", false)) {
+        firstOpenMutex.lock()
+        try {
+            if (firstOpenSentThisProcess) return
             firstOpen()
-            preferences.edit().putBoolean("firstOpenSent", true).apply()
+            firstOpenSentThisProcess = true
+        } finally {
+            firstOpenMutex.unlock()
         }
     }
     suspend fun products() = post(ApiRoute.PRODUCT_LIST)
+    suspend fun productLogo(url: String): Bitmap? = withContext(Dispatchers.IO) {
+        if (url.isBlank()) return@withContext null
+        runCatching {
+            client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+                if (!response.isSuccessful) null
+                else response.body?.byteStream()?.use { stream -> BitmapFactory.decodeStream(stream) }
+            }
+        }.getOrNull()
+    }
     suspend fun requestCode(phone: String, device: Map<String, String>) = post(ApiRoute.SEND_CODE, device + mapOf(
         ApiField.PHONE to phone,
         ApiField.TYPE to "1"
@@ -261,8 +310,16 @@ internal class CediApi(private val context: Context) {
         if (authenticated) ApiRoute.EVENT_AUTHENTICATED else ApiRoute.EVENT_ANONYMOUS,
         mapOf(ApiField.EVENT_LIST to eventsJson)
     )
-    suspend fun sendEvent(type: String, page: String, authenticated: Boolean) = sendEvents(
-        org.json.JSONArray().put(JSONObject().put(ApiField.EVENT_PARAMETER, page).put(ApiField.TYPE, type)).toString(),
+    suspend fun sendEvent(type: String, page: String, authenticated: Boolean) = sendEvent(
+        type,
+        mapOf(ApiField.EVENT_PARAMETER to page),
+        authenticated
+    )
+    suspend fun sendEvent(type: String, parameters: Map<String, String>, authenticated: Boolean) = sendEvents(
+        org.json.JSONArray().put(JSONObject().apply {
+            parameters.forEach { (key, value) -> put(key, value) }
+            put(ApiField.EVENT_TYPE, type)
+        }).toString(),
         authenticated
     )
 
@@ -299,29 +356,110 @@ internal class CediApi(private val context: Context) {
             val base = BuildConfig.API_BASE_URL.trimEnd('/')
             val deviceInfo = DeviceHeader(context, preferences).asJson()
             val request = Request.Builder()
-                .url("$base/${route.code}")
+                .url("$base${route.mappingUri}")
                 .header(ApiField.HEADER_LANGUAGE, "en")
                 .header(ApiField.HEADER_COUNTRY, "GH")
                 .header(ApiField.HEADER_TOKEN, preferences.getString("token", "").orEmpty())
                 .header(ApiField.HEADER_DEVICE, deviceInfo)
                 .post(form)
                 .build()
-            val body = client.newCall(request).execute().use { response ->
-                val payload = response.body?.string().orEmpty()
-                if (!response.isSuccessful) throw ApiException("Service request failed (${response.code}).")
-                payload
+            val startedAt = System.nanoTime()
+            apiLog("Request ${request.method} route=${route.code} url=${request.url} fields=${values.keys.joinToString()}")
+            val body = try {
+                client.newCall(request).execute().use { response ->
+                    apiLog("HTTP route=${route.code} status=${response.code} elapsed=${elapsedMillis(startedAt)}ms")
+                    val payload = response.body?.string().orEmpty()
+                    logResponseBody(route, payload)
+                    if (!response.isSuccessful) throw ApiException("Service request failed (${response.code}).")
+                    payload
+                }
+            } catch (error: Exception) {
+                apiLog("Failed route=${route.code} elapsed=${elapsedMillis(startedAt)}ms error=${error.javaClass.simpleName}")
+                throw error
             }
-            val response = runCatching { JSONObject(body) }.getOrElse { throw ApiException("Invalid service response.") }
-            when (response.optInt(ApiField.RESULT, 0)) {
+            val response = parseResponse(route, body)
+            val result = response.opt(ApiField.RESULT)?.toString()?.toIntOrNull()
+            apiLog("Result route=${route.code} result=${result ?: "missing or invalid"} elapsed=${elapsedMillis(startedAt)}ms")
+            when (result) {
                 -1 -> {
                     clearSession()
                     throw ExpiredSessionException()
                 }
-                0 -> throw ApiException(response.optString(ApiField.MESSAGE).ifBlank { "Request could not be completed." }, 0)
+                0 -> {
+                    val message = if (response.isNull(ApiField.MESSAGE)) "" else response.optString(ApiField.MESSAGE)
+                    throw ApiException(message.ifBlank { "Request could not be completed." }, 0)
+                }
                 1 -> response
                 else -> throw ApiException("Invalid service response.")
             }
         }
+
+    private fun parseResponse(route: ApiRoute, body: String): JSONObject {
+        try {
+            val response = JSONObject(body)
+            if (response.has(ApiField.RESULT) || !response.has("statusCodeValue")) return response
+
+            val status = response.getInt("statusCodeValue")
+            if (status !in 200..299) {
+                val reason = when (response.optString("body").trim()) {
+                    "sign error" -> "signature rejected"
+                    "deviceInfo" -> "device information rejected"
+                    else -> null
+                }
+                apiLog("Gateway route=${route.code} status=$status reason=${reason ?: "unspecified"}")
+                val details = reason?.let { "$status, $it" } ?: status.toString()
+                throw ApiException("Service request failed ($details).")
+            }
+            apiLog("Gateway route=${route.code} status=$status")
+
+            return when (val payload = response.opt("body")) {
+                is JSONObject -> payload
+                is String -> JSONObject(payload)
+                else -> throw JSONException("Missing gateway response body")
+            }
+        } catch (_: JSONException) {
+            apiLog("Invalid response route=${route.code}")
+            throw ApiException("Invalid service response.")
+        }
+    }
+
+    private fun apiLog(message: String) {
+        if (BuildConfig.API_LOG_ENABLED) Log.d(API_LOG_TAG, message)
+    }
+
+    private fun logResponseBody(route: ApiRoute, body: String) {
+        if (!BuildConfig.DEBUG || !BuildConfig.API_LOG_ENABLED) return
+
+        val prefix = "Response route=${route.code}"
+        if (route == ApiRoute.AWS_UPLOAD_INFO) {
+            Log.d(API_LOG_TAG, "$prefix body=<redacted AWS upload credentials response>")
+            return
+        }
+        if (body.isEmpty()) {
+            Log.d(API_LOG_TAG, "$prefix body=<empty>")
+            return
+        }
+
+        // Keep each entry below Logcat's byte limit and preserve surrogate pairs.
+        var offset = 0
+        var part = 1
+        while (offset < body.length) {
+            var end = minOf(offset + 1000, body.length)
+            if (end < body.length && body[end].isLowSurrogate()) end--
+            Log.d(API_LOG_TAG, "$prefix part=$part body=${body.substring(offset, end)}")
+            offset = end
+            part++
+        }
+    }
+
+    private fun elapsedMillis(startedAtNanos: Long) = (System.nanoTime() - startedAtNanos) / 1_000_000
+
+    private companion object {
+        const val API_LOG_TAG = "CediApi"
+        private val firstOpenMutex = Mutex()
+        // Reset naturally when Android starts a new app process.
+        @Volatile private var firstOpenSentThisProcess = false
+    }
 
     private fun signature(parameters: Map<String, String>): String {
         val key = CediPlusConfig.API_SIGNING_KEY
@@ -416,8 +554,8 @@ internal class S3ImageUploader(private val context: Context, private val api: Ce
         val folder = parameters.optString(ApiField.AWS_FOLDER).trim('/')
         val region = parameters.optString(ApiField.AWS_REGION)
         val access = credentials.optString("accessKeyId")
-        val secret = credentials.optString("accessKeySecret")
-        val session = credentials.optString("securityToken")
+        val secret = credentials.optString("secretAccessKey")
+        val session = credentials.optString("sessionToken")
         if (bucket.isBlank() || region.isBlank() || access.isBlank() || secret.isBlank() || session.isBlank()) {
             throw ApiException("Upload credentials are incomplete.")
         }
@@ -432,23 +570,42 @@ internal class S3ImageUploader(private val context: Context, private val api: Ce
             else if (pathSegments.lastOrNull()?.equals("pdf", ignoreCase = true) != true) pathSegments += "pdf"
         }
         val key = (pathSegments + date + "$fileName.$extension").joinToString("/")
-        aws.sdk.kotlin.services.s3.S3Client.fromEnvironment {
-            this.region = region
-            credentialsProvider = aws.sdk.kotlin.runtime.auth.credentials.StaticCredentialsProvider {
-                accessKeyId = access
-                secretAccessKey = secret
-                sessionToken = session
+        try {
+            withContext(Dispatchers.IO) {
+                aws.sdk.kotlin.services.s3.S3Client.fromEnvironment {
+                    this.region = region
+                    credentialsProvider = aws.sdk.kotlin.runtime.auth.credentials.StaticCredentialsProvider {
+                        accessKeyId = access
+                        secretAccessKey = secret
+                        sessionToken = session
+                    }
+                }.use { s3 ->
+                    val request = aws.sdk.kotlin.services.s3.model.PutObjectRequest {
+                        this.bucket = bucket
+                        this.key = key
+                        this.contentType = contentType
+                        this.body = aws.smithy.kotlin.runtime.content.ByteStream.fromBytes(bytes)
+                    }
+                    s3.putObject(request)
+                }
             }
-        }.use { s3 ->
-            val request = aws.sdk.kotlin.services.s3.model.PutObjectRequest {
-                this.bucket = bucket
-                this.key = key
-                this.contentType = contentType
-                this.body = aws.smithy.kotlin.runtime.content.ByteStream.fromBytes(bytes)
-            }
-            s3.putObject(request)
+        } catch (error: Exception) {
+            logUploadFailure(error)
+            throw error
         }
         return key
+    }
+
+    private fun logUploadFailure(error: Throwable) {
+        if (!BuildConfig.DEBUG || !BuildConfig.API_LOG_ENABLED) return
+
+        val causeTypes = mutableListOf<String>()
+        var current: Throwable? = error
+        while (current != null && causeTypes.size < 8) {
+            causeTypes += current.javaClass.name
+            current = current.cause
+        }
+        Log.e("CediApi", "S3 upload failed causeTypes=${causeTypes.joinToString(" -> ")}")
     }
 
     private fun jpegBytes(source: Bitmap): ByteArray {

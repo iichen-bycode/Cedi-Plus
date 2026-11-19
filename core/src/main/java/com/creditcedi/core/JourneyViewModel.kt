@@ -10,7 +10,7 @@ class JourneyViewModel(val state: Bundle = Bundle()) {
     val signedIn get() = state.getBoolean("signedIn")
     val hasOrder get() = state.getBoolean("hasOrder")
     val hasFeedback get() = state.getBoolean("hasFeedback")
-    val home get() = if (hasOrder) HOME_ACTIVE else HOME
+    val home get() = rememberedHomeDestination() ?: if (hasOrder) HOME_ACTIVE else HOME
     val profile get() = if (signedIn) PROFILE else PROFILE_GUEST
     val orders get() = if (hasOrder) ORDERS else ORDERS_EMPTY
 
@@ -38,12 +38,32 @@ class JourneyViewModel(val state: Bundle = Bundle()) {
         return true
     }
 
-    fun login() { state.putBoolean("signedIn", true); root(home) }
+    fun rememberHomeDestination(screen: Screen) {
+        if (screen in setOf(HOME, HOME_ACTIVE, HOME_PRODUCTS, HOME_APPLIED)) {
+            state.putString("homeDestination", screen.name)
+        }
+    }
+
+    private fun rememberedHomeDestination(): Screen? = when (state.getString("homeDestination")) {
+        HOME.name -> HOME
+        HOME_ACTIVE.name -> HOME_ACTIVE
+        HOME_PRODUCTS.name -> HOME_PRODUCTS
+        HOME_APPLIED.name -> HOME_APPLIED
+        else -> null
+    }
+
+    fun login() {
+        state.putBoolean("signedIn", true)
+        state.putBoolean("hasOrder", false)
+        state.remove("homeDestination")
+        root(HOME)
+    }
     fun signOut() {
         for (key in state.keySet().filter { it.startsWith("field.") }) state.remove(key)
         state.putBoolean("signedIn", false)
         state.putBoolean("hasOrder", false)
         state.putBoolean("hasFeedback", false)
+        state.remove("homeDestination")
         root(HOME)
     }
 
