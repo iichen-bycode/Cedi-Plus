@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.Window
@@ -16,7 +17,6 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.RadioButton
-import androidx.constraintlayout.widget.ConstraintLayout
 import com.creditcedi.access.R as AccessR
 import com.creditcedi.core.R as CoreR
 
@@ -37,7 +37,7 @@ class CountryDialog : DialogFragment() {
         val dialog = Dialog(host)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         val backdrop = FrameLayout(host)
-        val panel = host.layoutInflater.inflate(AccessR.layout.country, backdrop, false) as ConstraintLayout
+        val panel = host.layoutInflater.inflate(AccessR.layout.country, backdrop, false) as ViewGroup
         val constraints = ScreenConstraints(panel)
         constraints.updateWidth(host.resources.displayMetrics.widthPixels)
         backdrop.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->

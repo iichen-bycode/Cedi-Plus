@@ -4,11 +4,11 @@ import android.content.Context
 import android.graphics.Canvas
 import android.util.AttributeSet
 import android.view.View
-import androidx.constraintlayout.widget.ConstraintLayout
+import android.view.ViewGroup
 import kotlin.math.roundToInt
 
 class StatusBarBackground(context: Context, attrs: AttributeSet) : View(context, attrs) {
-    var page: ConstraintLayout? = null
+    var page: ViewGroup? = null
         set(value) {
             field = value
             invalidate()

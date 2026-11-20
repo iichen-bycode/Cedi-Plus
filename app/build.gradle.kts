@@ -67,6 +67,9 @@ dependencies {
     implementation("com.facebook.android:facebook-core:19.0.1")
     implementation("aws.sdk.kotlin:s3:1.5.123")
     implementation("com.google.android.gms:play-services-ads-identifier:18.3.0")
+    implementation("androidx.camera:camera-camera2:1.7.0")
+    implementation("androidx.camera:camera-lifecycle:1.7.0")
+    implementation("androidx.camera:camera-view:1.7.0")
 }
 
 

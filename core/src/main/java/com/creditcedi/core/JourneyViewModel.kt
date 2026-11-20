@@ -14,6 +14,9 @@ class JourneyViewModel(val state: Bundle = Bundle()) {
     val profile get() = if (signedIn) PROFILE else PROFILE_GUEST
     val orders get() = if (hasOrder) ORDERS else ORDERS_EMPTY
 
+    fun previousPage(excluding: Set<Screen>): Screen? =
+        history.asReversed().asSequence().map(Screen::valueOf).firstOrNull { it !in excluding }
+
     fun go(screen: Screen, replace: Boolean = false) {
         if (screen == current) return
         if (!replace) history.add(current.name)

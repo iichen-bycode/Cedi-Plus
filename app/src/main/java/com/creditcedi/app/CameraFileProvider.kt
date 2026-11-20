@@ -59,7 +59,9 @@ class CameraFileProvider : ContentProvider() {
             throw FileNotFoundException("Invalid camera file URI.")
         }
         val name = uri.pathSegments[1]
-        if (!name.matches(Regex("cedi_[0-9]+\\.jpg"))) throw FileNotFoundException("Invalid camera file name.")
+        if (!name.matches(Regex("(?:cedi_[0-9]+|face_[0-9]+(?:_[0-9]+)?|document_[0-9]+(?:_[0-9]+)?)\\.jpg"))) {
+            throw FileNotFoundException("Invalid camera file name.")
+        }
         val root = File(requireNotNull(context).cacheDir, "camera-photos").canonicalFile
         val file = File(root, name).canonicalFile
         if (file.parentFile != root || !file.isFile) throw FileNotFoundException("Camera file does not exist.")

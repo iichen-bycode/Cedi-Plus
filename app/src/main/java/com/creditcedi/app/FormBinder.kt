@@ -2,10 +2,13 @@ package com.creditcedi.app
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.DatePickerDialog
+import android.graphics.Color
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.text.Editable
 import android.text.TextWatcher
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.TextView
@@ -62,16 +65,40 @@ internal class FormBinder(
 
     private fun key(index: Int) = model.current.name + "_" + index
 
-    fun input(field: EditText, screen: Screen, index: Int) {
+    fun input(field: EditText, screen: Screen, index: Int, fixedPrefix: String? = null) {
         val key = screen.name + "_" + index
-        field.setText(model.field(key))
-        val change = InputChange(screen, index, key, model.field(key))
+        val storedValue = model.field(key)
+        val initialValue = fixedPrefix?.let { prefix ->
+            val suffix = if (storedValue.startsWith(prefix, ignoreCase = true)) {
+                storedValue.substring(prefix.length)
+            } else {
+                storedValue
+            }
+            prefix + suffix
+        } ?: storedValue
+        if (initialValue != storedValue) model.edit(key, initialValue)
+        field.setText(if (fixedPrefix == null) initialValue else initialValue.removePrefix(fixedPrefix))
+        val change = InputChange(screen, index, key, initialValue)
         inputChanges += change
+        var normalizingFixedPrefix = false
         field.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 val oldValue = model.field(key)
-                val newValue = s.toString()
+                val enteredValue = s.toString()
+                val normalizedInput = fixedPrefix?.let { prefix ->
+                    if (!normalizingFixedPrefix && enteredValue.startsWith(prefix, ignoreCase = true)) {
+                        enteredValue.substring(prefix.length).also { suffix ->
+                            normalizingFixedPrefix = true
+                            field.setText(suffix)
+                            field.setSelection(suffix.length)
+                            normalizingFixedPrefix = false
+                        }
+                    } else {
+                        enteredValue
+                    }
+                } ?: enteredValue
+                val newValue = fixedPrefix?.let { it + normalizedInput } ?: normalizedInput
                 if (oldValue != newValue) {
                     model.edit(key, newValue)
                     change.changed = true
@@ -105,23 +132,59 @@ internal class FormBinder(
             missingOptionsHandler()
             return
         }
-        AlertDialog.Builder(activity).setTitle(title)
-            .setItems(values.toTypedArray()) { _, chosen ->
-                val newValue = values[chosen]
-                val page = model.current
-                val oldValue = model.field(page.name + "_" + index)
-                model.edit(page.name + "_" + index, newValue)
-                view.text = newValue
-                if (oldValue != newValue) onFieldChanged(page, index, oldValue, newValue)
-                choiceHandler(page, index, newValue, stage ?: (view.parent as? ViewGroup ?: return@setItems))
-            }.show()
+        showChoiceDialog(title, values) { chosen ->
+            val newValue = values[chosen]
+            val page = model.current
+            val oldValue = model.field(page.name + "_" + index)
+            model.edit(page.name + "_" + index, newValue)
+            view.text = newValue
+            if (page in setOf(Screen.IDENTITY_CARD, Screen.DRIVER_LICENSE, Screen.VOTER_CARD, Screen.IDENTITY_FILLED)) {
+                view.setTextColor(Color.rgb(18, 13, 1))
+            }
+            if (oldValue != newValue) onFieldChanged(page, index, oldValue, newValue)
+            (stage ?: (view.parent as? ViewGroup))?.let { owner ->
+                choiceHandler(page, index, newValue, owner)
+            }
+        }
+    }
+
+    private fun showChoiceDialog(title: String, values: List<String>, onChosen: (Int) -> Unit) {
+        val density = activity.resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+        val adapter = object : ArrayAdapter<String>(
+            activity,
+            android.R.layout.simple_list_item_1,
+            values
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = super.getView(position, convertView, parent)
+                val text = row as? TextView ?: row.findViewById<TextView>(android.R.id.text1)
+                text.apply {
+                    setSingleLine(false)
+                    maxLines = Int.MAX_VALUE
+                    ellipsize = null
+                    gravity = Gravity.CENTER_VERTICAL
+                    minHeight = dp(48)
+                    setPadding(dp(24), dp(10), dp(24), dp(10))
+                    layoutParams = (layoutParams ?: ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    )).apply { height = ViewGroup.LayoutParams.WRAP_CONTENT }
+                }
+                return row
+            }
+        }
+        AlertDialog.Builder(activity)
+            .setTitle(title)
+            .setAdapter(adapter) { _, chosen -> onChosen(chosen) }
+            .show()
     }
 
     fun choose(view: TextView, index: Int, stage: ViewGroup) {
-        val top = (view.layoutParams as android.view.ViewGroup.MarginLayoutParams).topMargin
+        val top = view.top
         val label = (0 until stage.childCount).map(stage::getChildAt).filterIsInstance<TextView>()
             .filter { it !== view && it !is EditText && it.tag != "Choose" }
-            .map { (it.layoutParams as android.view.ViewGroup.MarginLayoutParams).topMargin to it.text.toString() }
+            .map { it.top to it.text.toString() }
             .filter { it.first < top }.maxByOrNull { it.first }?.second.orEmpty()
         val dynamicValues = optionProvider(model.current, index, label)
         if (dynamicValues != null) {
@@ -132,19 +195,29 @@ internal class FormBinder(
             return
         }
         when {
-            label.contains("Birth") -> DatePickerDialog(activity, { _, year, month, day ->
-                val formatted = String.format(Locale.UK, "%02d-%02d-%04d", day, month + 1, year)
-                val oldValue = model.field(key(index))
-                view.text = formatted
-                model.edit(key(index), formatted)
-                if (oldValue != formatted) onFieldChanged(model.current, index, oldValue, formatted)
-            }, 2000, 0, 1).showWithPopupButtonStyle()
+            label.contains("Birth") -> {
+                val page = model.current
+                val fieldKey = "${page.name}_$index"
+                BirthdayDateDialog(activity, model.field(fieldKey)) { formatted ->
+                    val oldValue = model.field(fieldKey)
+                    view.text = formatted
+                    if (page in setOf(Screen.IDENTITY_CARD, Screen.DRIVER_LICENSE, Screen.VOTER_CARD, Screen.IDENTITY_FILLED)) {
+                        view.setTextColor(Color.rgb(18, 13, 1))
+                    }
+                    model.edit(fieldKey, formatted)
+                    if (oldValue != formatted) onFieldChanged(page, index, oldValue, formatted)
+                }.show()
+            }
             label.contains("Gender") -> select(view, index, label, listOf("Male", "Female"), stage)
-            label.contains("certificate", true) || label.contains("other certificates", true) ->
-                AlertDialog.Builder(activity).setTitle("Select Certificate Type")
-                    .setItems(arrayOf("ID Card", "Driving License", "Voter Card")) { _, choice ->
-                        model.go(listOf(Screen.IDENTITY_CARD, Screen.DRIVER_LICENSE, Screen.VOTER_CARD)[choice], true)
-                    }.show()
+            label.contains("certificate", true) || label.contains("other certificates", true) -> {
+                val screens = listOf(Screen.IDENTITY_CARD, Screen.DRIVER_LICENSE, Screen.VOTER_CARD)
+                val values = listOf("ID Card", "Driving License", "Voter Card")
+                showChoiceDialog("Select Certificate Type", values) { choice ->
+                    val selectedScreen = screens[choice]
+                    model.state.putString("authenticationCardScreen", selectedScreen.name)
+                    model.go(selectedScreen, true)
+                }
+            }
             label.contains("Wallet") -> select(view, index, label, listOf("MTN Mobile Money", "Telecel Cash", "AT Money"), stage)
             label.contains("Relationship") -> select(view, index, label, listOf("Parent", "Spouse", "Sibling", "Friend"), stage)
             label.contains("Education") -> select(view, index, label, listOf("Uneducated", "Primary School", "Secondary School", "High School", "University Degree", "Masters Degree", "Doctorate Degree"), stage)

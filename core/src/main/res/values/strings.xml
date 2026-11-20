@@ -235,6 +235,11 @@
     <string name="text_received_amount" formatted="false">Received Amount :</string>
     
     <string name="text_repayment_amount" formatted="false">Repayment Amount</string>
+    <string name="text_fee_details" formatted="false">Fee details</string>
+    <string name="text_verification_fee" formatted="false">Verification fee</string>
+    <string name="text_gst_fee" formatted="false">GST</string>
+    <string name="text_interest_fee" formatted="false">Interest</string>
+    <string name="text_overdue_rate" formatted="false">Overdue rate</string>
     
     <string name="text_congratulations_you_ve_been_selected_to_receive_gh" formatted="false">
         <font color="#999999">Congratulations! You\'ve been selected to receive GHS </font>
@@ -465,6 +470,10 @@
     <string name="text_1997" formatted="false">1997</string>
     
     <string name="text_upload_a_photo_of_the_front_of_your_driver_s_licen" formatted="false">Upload a photo of the front of your driver’s license.</string>
+
+    <string name="text_upload_a_photo_of_the_front_of_your_id_card" formatted="false">Upload a photo of the front of your ID card.</string>
+
+    <string name="text_upload_a_photo_of_the_front_of_your_voter_card" formatted="false">Upload a photo of the front of your voter card.</string>
     
     <string name="text_id_card_number" formatted="false">ID Card Number</string>
     
@@ -475,6 +484,10 @@
     <string name="text_enter_e_mail" formatted="false">Enter E-mail</string>
     
     <string name="text_select_certificate_type" formatted="false">Select Certificate Type</string>
+
+    <string name="text_ghana_id_prefix" formatted="false">GHA-</string>
+
+    <string name="text_xxxxxxxxx_x" formatted="false">XXXXXXXXX-X</string>
     
     <string name="text_next" formatted="false">Next</string>
     
@@ -526,6 +539,10 @@
     <string name="text_22_7eb32" formatted="false">22</string>
     
     <string name="text_upload_a_clear_selfie" formatted="false">Upload a clear selfie</string>
+
+    <string name="face_camera_retry_permission" formatted="false">Camera access is required. Tap to retry.</string>
+
+    <string name="face_camera_retry_unavailable" formatted="false">Camera unavailable. Tap to retry.</string>
     
     <string name="text_type_of_relationship" formatted="false">Type of Relationship</string>
     

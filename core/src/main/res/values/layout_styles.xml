@@ -1,7 +1,0 @@
-<resources>
-    <style name="ScreenItem">
-        <item name="layout_constraintLeft_toLeftOf">parent</item>
-        <item name="layout_constraintRight_toRightOf">parent</item>
-        <item name="layout_constraintTop_toTopOf">parent</item>
-    </style>
-</resources>

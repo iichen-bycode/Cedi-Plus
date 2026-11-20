@@ -1,45 +1,68 @@
-<?xml version='1.0' encoding='utf-8'?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:layout_width="match_parent" android:layout_height="match_parent" android:tag="375,768" android:background="#ffffff" android:focusableInTouchMode="true">
-    <ImageView android:src="@drawable/art_7afb54db30c4" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="20dp" android:layout_marginTop="15dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="347dp" app:layout_constraintDimensionRatio="H,8:14" />
-    <TextView android:textColor="#ff120d01" android:textSize="20sp" android:includeFontPadding="false" android:gravity="end|center_vertical" android:fontFamily="sans-serif-medium" android:padding="0dp" android:text="@string/text_authenticate" android:tag="@string/text_authenticate" android:layout_marginLeft="130dp" android:layout_marginTop="10dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="126dp" app:layout_constraintDimensionRatio="H,119:26" />
-    <View android:background="@drawable/surface_5f5ca062bba4" android:layout_marginLeft="20dp" android:layout_marginTop="76dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="29dp" app:layout_constraintDimensionRatio="H,326:8" />
-    <ImageView android:src="@drawable/art_6094374e07d3" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="311dp" android:layout_marginTop="56dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="28dp" app:layout_constraintDimensionRatio="H,36:36" />
-    <TextView android:textColor="#ff192048" android:textSize="12sp" android:includeFontPadding="false" android:gravity="end|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_kyc_info" android:tag="@string/text_kyc_info" android:layout_marginLeft="303dp" android:layout_marginTop="97dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="17dp" app:layout_constraintDimensionRatio="H,55:19" />
-    <ImageView android:src="@drawable/art_9a37e0bb1cab" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="329dp" android:layout_marginTop="215dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="32dp" app:layout_constraintDimensionRatio="H,14:8" />
-    <TextView android:textColor="#ff120d01" android:textSize="16sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_select_certificate_type" android:tag="@string/text_select_certificate_type" android:layout_marginLeft="32dp" android:layout_marginTop="144dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="181dp" app:layout_constraintDimensionRatio="H,162:21" />
-    <TextView android:textColor="#ff120d01" android:textSize="14sp" android:includeFontPadding="false" android:gravity="end|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_upload_a_photo_of_the_front_of_your_driver_s_licen" android:tag="@string/text_upload_a_photo_of_the_front_of_your_driver_s_licen" android:layout_marginLeft="36dp" android:layout_marginTop="275dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="33dp" app:layout_constraintDimensionRatio="H,306:38" />
-    <TextView android:textColor="#ff120d01" android:textSize="14sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_you_may_switch_to_other_certificates" android:tag="@string/text_you_may_switch_to_other_certificates" android:layout_marginLeft="32dp" android:layout_marginTop="173dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="113dp" app:layout_constraintDimensionRatio="H,230:18" />
-    <View android:background="@drawable/surface_7d61c38ff0cb" android:layout_marginLeft="20dp" android:layout_marginTop="199dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="20dp" app:layout_constraintDimensionRatio="H,335:40" />
-    <View android:background="@drawable/surface_7d61c38ff0cb" android:layout_marginLeft="20dp" android:layout_marginTop="259dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="20dp" app:layout_constraintDimensionRatio="H,335:190" />
-    <TextView android:textColor="#ff999999" android:textSize="14sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_choose" android:tag="@string/text_choose" android:layout_marginLeft="32dp" android:layout_marginTop="211dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="292dp" app:layout_constraintDimensionRatio="H,51:18" />
-    <TextView android:textColor="#ff120d01" android:textSize="16sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_voter_card_number" android:tag="@string/text_voter_card_number" android:layout_marginLeft="32dp" android:layout_marginTop="469dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="203dp" app:layout_constraintDimensionRatio="H,140:21" />
-    <TextView android:textColor="#ff120d01" android:textSize="16sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_name" android:tag="@string/text_name" android:layout_marginLeft="32dp" android:layout_marginTop="556dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginRight="297dp" />
-    <View android:background="@drawable/surface_7d61c38ff0cb" android:layout_marginLeft="20dp" android:layout_marginTop="496dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="20dp" app:layout_constraintDimensionRatio="H,335:40" />
-    <View android:background="@drawable/surface_7d61c38ff0cb" android:layout_marginLeft="20dp" android:layout_marginTop="583dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="20dp" app:layout_constraintDimensionRatio="H,335:40" />
-    <TextView android:textColor="#ff999999" android:textSize="14sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_please_enter" android:tag="@string/text_please_enter" android:layout_marginLeft="32dp" android:layout_marginTop="508dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="262dp" app:layout_constraintDimensionRatio="H,81:18" />
-    <TextView android:textColor="#ff999999" android:textSize="14sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_enter_name" android:tag="@string/text_enter_name" android:layout_marginLeft="32dp" android:layout_marginTop="595dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="266dp" app:layout_constraintDimensionRatio="H,77:18" />
-    <ImageView android:src="@drawable/art_9a37e0bb1cab" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="329dp" android:layout_marginTop="686dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="32dp" app:layout_constraintDimensionRatio="H,14:8" />
-    <TextView android:textColor="#ff120d01" android:textSize="16sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_date_of_birth" android:tag="@string/text_date_of_birth" android:layout_marginLeft="32dp" android:layout_marginTop="643dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="250dp" app:layout_constraintDimensionRatio="H,93:21" />
-    <TextView android:textColor="#ff120d01" android:textSize="16sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_gender_option" android:tag="@string/text_gender_option" android:layout_marginLeft="32dp" android:layout_marginTop="730dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="237dp" app:layout_constraintDimensionRatio="H,106:21" />
-    <View android:background="@drawable/surface_7d61c38ff0cb" android:layout_marginLeft="20dp" android:layout_marginTop="670dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="20dp" app:layout_constraintDimensionRatio="H,335:40" />
-    <View android:background="@drawable/surface_7d61c38ff0cb" android:layout_marginLeft="20dp" android:layout_marginTop="757dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="20dp" app:layout_constraintDimensionRatio="H,335:11" />
-    <TextView android:textColor="#ff999999" android:textSize="14sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_choose" android:tag="@string/text_choose" android:layout_marginLeft="32dp" android:layout_marginTop="682dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="292dp" app:layout_constraintDimensionRatio="H,51:18" />
-    <View android:background="@drawable/surface_8e76519b21d0" android:layout_marginLeft="88dp" android:layout_marginTop="321dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="87dp" app:layout_constraintDimensionRatio="H,200:112" />
-    <ImageView android:src="@drawable/art_7f7fa42bc104" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="242dp" android:layout_marginTop="372dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="97dp" app:layout_constraintDimensionRatio="H,36:36" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="98dp" android:layout_marginTop="331dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="255dp" app:layout_constraintDimensionRatio="H,22:22" />
-    <View android:background="@drawable/surface_b1fa1ac27ad8" android:layout_marginLeft="98dp" android:layout_marginTop="359dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="237dp" app:layout_constraintDimensionRatio="H,40:50" />
-    <ImageView android:src="@drawable/art_61ba861519c7" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="98dp" android:layout_marginTop="359dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="237dp" app:layout_constraintDimensionRatio="H,40:50" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="126dp" android:layout_marginTop="331dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="97dp" app:layout_constraintDimensionRatio="H,152:8" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="126dp" android:layout_marginTop="345dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="97dp" app:layout_constraintDimensionRatio="H,152:8" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="144dp" android:layout_marginTop="359dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="97dp" app:layout_constraintDimensionRatio="H,134:8" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="98dp" android:layout_marginTop="415dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="97dp" app:layout_constraintDimensionRatio="H,180:8" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="144dp" android:layout_marginTop="373dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="139dp" app:layout_constraintDimensionRatio="H,92:8" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="144dp" android:layout_marginTop="387dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="139dp" app:layout_constraintDimensionRatio="H,92:8" />
-    <View android:background="@drawable/surface_1f52aa8dc26e" android:layout_marginLeft="144dp" android:layout_marginTop="401dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="139dp" app:layout_constraintDimensionRatio="H,92:8" />
-    <View android:background="@drawable/surface_c6598eeb1eab" android:layout_marginLeft="168dp" android:layout_marginTop="357dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="167dp" app:layout_constraintDimensionRatio="H,40:40" />
-    <ImageView android:src="@drawable/art_80f6096c659c" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="175dp" android:layout_marginTop="366dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="174dp" app:layout_constraintDimensionRatio="H,26:24" />
-    <View android:alpha="0.4" android:clickable="true" android:importantForAccessibility="no" android:background="@drawable/surface_8590b20b986a" android:layout_marginLeft="0dp" android:layout_marginTop="-44dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" app:layout_constraintBottom_toBottomOf="parent" />
-    <ImageView android:src="@drawable/art_d7d77f176221" android:scaleType="fitXY" android:importantForAccessibility="no" android:layout_marginLeft="20dp" android:layout_marginTop="265dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="20dp" app:layout_constraintDimensionRatio="H,335:195" />
-    <TextView android:textColor="#ff120d01" android:textSize="18sp" android:includeFontPadding="false" android:gravity="end|center_vertical" android:fontFamily="sans-serif-medium" android:padding="0dp" android:text="@string/text_please_do_not_exit" android:tag="@string/text_please_do_not_exit" android:layout_marginLeft="40dp" android:layout_marginTop="304dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="184dp" app:layout_constraintDimensionRatio="H,151:23" />
-    <TextView android:textColor="#ff120d01" android:textSize="14sp" android:includeFontPadding="false" android:gravity="start|center_vertical" android:fontFamily="sans-serif" android:padding="0dp" android:text="@string/text_you_can_receive_a_large_sum_of_cash_after_completi" android:tag="@string/text_you_can_receive_a_large_sum_of_cash_after_completi" android:layout_marginLeft="40dp" android:layout_marginTop="340dp" style="@style/ScreenItem" android:layout_width="0dp" android:layout_height="0dp" android:layout_marginRight="37dp" app:layout_constraintDimensionRatio="H,298:42" />
-</androidx.constraintlayout.widget.ConstraintLayout>
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/kyc_exit_backdrop"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent"
+    android:clickable="true"
+    android:focusable="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/kyc_exit_card"
+        android:layout_width="335dp"
+        android:layout_height="195dp"
+        android:layout_gravity="center"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY"
+            android:src="@drawable/art_d7d77f176221"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <TextView
+            android:id="@+id/kyc_exit_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="39dp"
+            android:layout_marginEnd="17dp"
+            android:fontFamily="sans-serif"
+            android:textStyle="bold|italic"
+            android:gravity="start|center_vertical"
+            android:textAlignment="viewStart"
+            android:includeFontPadding="false"
+            android:padding="0dp"
+            android:text="@string/text_please_do_not_exit"
+            android:textColor="#ff120d01"
+            android:textSize="18sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="13dp"
+            android:layout_marginEnd="17dp"
+            android:fontFamily="sans-serif"
+            android:gravity="start|top"
+            android:includeFontPadding="false"
+            android:lineSpacingExtra="2dp"
+            android:padding="0dp"
+            android:text="@string/text_you_can_receive_a_large_sum_of_cash_after_completi"
+            android:textColor="#ff192048"
+            android:textSize="14sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/kyc_exit_title" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

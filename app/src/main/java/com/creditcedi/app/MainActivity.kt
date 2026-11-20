@@ -6,7 +6,6 @@ import android.app.Dialog
 import android.Manifest
 import com.creditcedi.account.FeedbackViewModel
 import com.creditcedi.identity.IdentityViewModel
-import com.creditcedi.identity.R as IdentityR
 import com.creditcedi.credit.CreditViewModel
 import com.creditcedi.credit.OrderStatusFilter
 import com.creditcedi.credit.R as CreditR
@@ -20,32 +19,45 @@ import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.text.Editable
+import android.text.StaticLayout
 import android.text.TextWatcher
 import android.os.Bundle
+import android.os.Build
 import android.provider.MediaStore
+import android.media.ExifInterface
 import android.os.SystemClock
 import android.graphics.Typeface
 import com.creditcedi.access.R as AccessR
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.camera.core.CameraSelector
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import com.creditcedi.access.AccessLayouts
 import com.creditcedi.account.AccountLayouts
+import com.creditcedi.account.R as AccountR
 import com.creditcedi.credit.CreditLayouts
 import com.creditcedi.identity.IdentityLayouts
-import androidx.constraintlayout.widget.ConstraintLayout
+import com.creditcedi.identity.R as IdentityR
 import com.creditcedi.core.R as CoreR
 import com.creditcedi.core.JourneyViewModel
 import com.creditcedi.core.Screen
 import com.creditcedi.core.Screen.*
 import java.util.Locale
-import java.util.IdentityHashMap
+import java.util.WeakHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
@@ -57,8 +69,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class MainActivity : Activity() {
+class MainActivity : Activity(), LifecycleOwner {
     private val homeScreens = setOf(HOME, HOME_ACTIVE, HOME_PRODUCTS, HOME_APPLIED)
+    private val orderScreens = setOf(ORDERS, ORDERS_EMPTY)
+    private val kycCertificatePages = setOf(IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD, IDENTITY_FILLED)
+    private val identityCardPages = setOf(IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD)
     private val personalInfoChoiceOrder = listOf(35, 36, 11, 37, 38, 39, 40)
     private val personalInfoChoiceViewIds = mapOf(
         35 to IdentityR.id.personal_info_education_value,
@@ -72,23 +87,24 @@ class MainActivity : Activity() {
     private lateinit var model: JourneyViewModel
     private lateinit var viewport: ScrollView
     private lateinit var statusBarBackground: StatusBarBackground
-    private lateinit var stage: ConstraintLayout
+    private var systemStatusBarInset = 0
+    private lateinit var stage: ViewGroup
     private lateinit var pageConstraints: ScreenConstraints
-    private var pageScrim: View? = null
-    private var defaultNavigationBarColor = Color.WHITE
+    private var screenDialog: Dialog? = null
     private var stickyAppBarViews = emptyList<View>()
     private var stickyAppBarBackground: View? = null
     private var footerConstraints: ScreenConstraints? = null
     private data class CachedTabPage(
         val screen: Screen,
-        val stage: ConstraintLayout,
+        val stage: ViewGroup,
         val pageConstraints: ScreenConstraints,
         val footerConstraints: ScreenConstraints?,
-        val pageScrim: View?,
         val stickyAppBarViews: List<View>,
         val stickyAppBarBackground: View?,
         var scrollY: Int
     )
+    private data class CapturedPhoto(val uri: Uri, val preview: Bitmap)
+    private data class CityRegion(val province: String, val districts: List<String>)
     private val cachedTabPages = mutableMapOf<Screen, CachedTabPage>()
     private var renderedScreen: Screen? = null
     private lateinit var form: FormBinder
@@ -105,22 +121,85 @@ class MainActivity : Activity() {
         Triple(50, 51, 48),
         Triple(63, 64, 61)
     )
-    private data class OrderCardSlot(val index: Int, val originalTop: Float)
-    private data class AuthContinuation(val info: org.json.JSONObject, val order: org.json.JSONObject?)
-    private val orderCardSlots = IdentityHashMap<View, OrderCardSlot>()
-    private val orderSkeletonViews = mutableListOf<View>()
-    private var fullOrdersHeight = 0f
+    private data class AuthContinuation(
+        val info: org.json.JSONObject,
+        val loanProduct: org.json.JSONObject?
+    )
+    private data class HomeApplicationRoute(
+        val productId: String,
+        val screen: Screen,
+        val loanProduct: org.json.JSONObject? = null,
+        val productOffer: Boolean = false
+    )
+    private data class LoanProductInfo(
+        val productId: String,
+        val name: String,
+        val logo: String,
+        val amount: String,
+        val days: String,
+        val payAmount: String,
+        val verificationFee: String,
+        val gstFee: String,
+        val interest: String,
+        val overdue: String,
+        val repayAmount: String,
+        val repayDate: String,
+        val fullServiceFee: String
+    ) {
+        companion object {
+            fun from(json: org.json.JSONObject) = LoanProductInfo(
+                productId = json.optString(ApiField.PRODUCT_ID).trim(),
+                name = json.optString(ApiField.PRODUCT_NAME).trim(),
+                logo = json.optString(ApiField.PRODUCT_LOGO).trim(),
+                amount = json.optString(ApiField.LOAN_AMOUNT).trim(),
+                days = json.optString(ApiField.LOAN_OF_DAYS).trim(),
+                payAmount = json.optString(ApiField.LOAN_PAY_AMOUNT).trim(),
+                verificationFee = json.optString(ApiField.LOAN_FEE_VERIFY).trim(),
+                gstFee = json.optString(ApiField.LOAN_FEE_GST).trim(),
+                interest = json.optString(ApiField.LOAN_INTEREST).trim(),
+                overdue = json.optString(ApiField.LOAN_OVERDUE).trim(),
+                repayAmount = json.optString(ApiField.LOAN_REPAY_AMOUNT).trim(),
+                repayDate = json.optString(ApiField.LOAN_REPAY_DATE).trim(),
+                fullServiceFee = json.optString(ApiField.FULL_SERVICE_FEE).trim()
+            )
+        }
+    }
     private var orderRecords: List<org.json.JSONObject> = emptyList()
     private var ordersLoading = false
-    private var ordersInitialLoadComplete = false
+    private var ordersPage = 0
+    private var ordersHasMore = true
+    private var ordersRequestId = 0
+    private var orderListContainer: LinearLayout? = null
+    private var activeOrdersFilter = OrderStatusFilter.ALL
     private var ratingPromptShown = false
     private var payFailPromptShown = false
     private val screen get() = model.current
     private var preview: Bitmap? = null
-    private var documentCapturePreview: Bitmap? = null
+    private val documentCapturePreviews = mutableMapOf<Screen, Bitmap>()
     private val api by lazy { CediApi(this) }
     private var selfieUri: Uri? = null
+    private var returnToAuthenticationAfterLiveness = true
     private var cameraOutputUri: Uri? = null
+    private val activityLifecycle = LifecycleRegistry(this)
+    override fun getLifecycle(): Lifecycle = activityLifecycle
+    private var faceCameraController: CameraPreviewController? = null
+    private var faceCameraContainer: FrameLayout? = null
+    private var faceCameraStatus: TextView? = null
+    private var faceCaptureButton: View? = null
+    private var faceCaptureIcon: View? = null
+    private var faceCameraReady = false
+    private var faceCaptureInProgress = false
+    private var documentCameraController: CameraPreviewController? = null
+    private var documentCameraContainer: FrameLayout? = null
+    private var documentCameraStatus: TextView? = null
+    private var documentCaptureButton: View? = null
+    private var documentCameraReady = false
+    private var documentCaptureInProgress = false
+    private var cityPickerRegions: List<CityRegion> = emptyList()
+    private var cityPickerActiveProvince = ""
+    private var cityProvinceRows: LinearLayout? = null
+    private var cityDistrictRows: LinearLayout? = null
+    private var citySearch: EditText? = null
     private val localPhotoUris = mutableSetOf<Uri>()
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val serviceEventMutex = Mutex()
@@ -131,12 +210,18 @@ class MainActivity : Activity() {
     private var afterPermissions: (() -> Unit)? = null
     private var settingsReturnPurpose: PermissionPurpose? = null
     private var loadingDialog: Dialog? = null
+    private var kycExitDialog: Dialog? = null
+    private var kycExitReturnScrollY = 0
     private var pendingDocumentScreen: Screen? = null
+    private var pendingDocumentCapture: CapturedPhoto? = null
     private var pendingRepaymentRefresh = false
     private var homeProducts = org.json.JSONArray()
+    private var homeHasRealProducts = false
     private var homeInfoSignedIn = false
     private var homeDataLoading = false
     private var homeDataResolved = false
+    private var pendingApplicationProductId: String? = null
+    private val homeProductActionIds = WeakHashMap<View, String>()
     private var forceHomePageRebuild = false
     private var layoutPreview = false
     private var renderedPageOrientation = Configuration.ORIENTATION_UNDEFINED
@@ -150,18 +235,22 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        activityLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         model = JourneyViewModel(savedInstanceState?.getBundle("journey") ?: Bundle())
         model.state.putBoolean("signedIn", api.hasSession())
         setContentView(R.layout.activity_main)
         viewport = findViewById(R.id.viewport)
-        defaultNavigationBarColor = window.navigationBarColor
         viewport.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             val offset = scrollY.toFloat()
             stickyAppBarBackground?.translationY = offset
             stickyAppBarViews.forEach { it.translationY = offset }
-            updateFullScreenScrim()
+            loadMoreOrdersIfNeeded(scrollY)
         }
         statusBarBackground = findViewById(R.id.status_bar_background)
+        val windowContent = findViewById<View>(R.id.window_content)
+        windowContent.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            updateStatusBarBackgroundHeight(view)
+        }
         viewport.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             if (pendingOrientationPage == null) updatePageWidth()
             renderPendingOrientationPage()
@@ -170,22 +259,15 @@ class MainActivity : Activity() {
         if (android.os.Build.VERSION.SDK_INT >= 29) window.isStatusBarContrastEnforced = false
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        findViewById<View>(R.id.window_content).setOnApplyWindowInsetsListener { view, insets ->
-            val statusHeight = if (android.os.Build.VERSION.SDK_INT >= 35) {
+        windowContent.setOnApplyWindowInsetsListener { view, insets ->
+            systemStatusBarInset = if (android.os.Build.VERSION.SDK_INT >= 35) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
                 view.setPadding(bars.left, 0, bars.right, bars.bottom)
                 bars.top
             } else {
                 insets.systemWindowInsetTop
             }
-            val referenceWidth = (view.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels).toFloat()
-            val designStatusHeight = (44f * referenceWidth / 375f).roundToInt()
-            val contentTop = maxOf(statusHeight, designStatusHeight)
-            val params = statusBarBackground.layoutParams
-            if (params.height != contentTop) {
-                params.height = contentTop
-                statusBarBackground.layoutParams = params
-            }
+            updateStatusBarBackgroundHeight(view)
             insets
         }
         form = FormBinder(this, model) { page, index, _, _ -> trackAuthFieldChange(page, index) }
@@ -208,10 +290,13 @@ class MainActivity : Activity() {
         } else if (route == COUNTRY || screen == COUNTRY) {
             model.root(SIGN_IN)
             openCountryDialog()
+        } else if (route == KYC_EXIT) {
+            model.root(IDENTITY_CARD)
+            model.go(KYC_EXIT)
         } else if (route != null) model.root(route)
         else if (!layoutPreview && screen in homeScreens) model.root(HOME)
         else show(screen)
-        if (screen == ORDERS && model.signedIn && !layoutPreview) loadOrders()
+        if (screen in orderScreens && model.signedIn && !layoutPreview) loadOrders(selectedOrderFilter())
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -221,7 +306,28 @@ class MainActivity : Activity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        val windowContent = findViewById<View>(R.id.window_content)
+        windowContent.requestApplyInsets()
+        windowContent.post { updateStatusBarBackgroundHeight(windowContent) }
         viewport.post { renderPendingOrientationPage() }
+    }
+
+    private fun updateStatusBarBackgroundHeight(windowContent: View) {
+        if (!::statusBarBackground.isInitialized) return
+
+        val referenceWidth = (windowContent.width.takeIf { it > 0 }
+            ?: resources.displayMetrics.widthPixels).toFloat()
+        val designStatusHeight = (44f * referenceWidth / 375f).roundToInt()
+        val height = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            systemStatusBarInset
+        } else {
+            maxOf(systemStatusBarInset, designStatusHeight)
+        }
+        val params = statusBarBackground.layoutParams
+        if (params.height != height) {
+            params.height = height
+            statusBarBackground.layoutParams = params
+        }
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
@@ -241,11 +347,18 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        releaseFaceCamera()
+        releaseDocumentCamera()
+        activityLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         activityScope.cancel()
         loadingDialog?.dismiss()
         loadingDialog = null
+        screenDialog?.dismiss()
+        kycExitDialog?.dismiss()
+        kycExitDialog = null
         clearSelfieCapture()
-        clearDocumentCapturePreview()
+        clearPendingDocumentCapture()
+        clearDocumentCapturePreviews()
         cameraOutputUri?.let(::deleteLocalPhoto)
         cameraOutputUri = null
         super.onDestroy()
@@ -253,7 +366,20 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        activityLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
         if (layoutPreview) return
+        if (::model.isInitialized && screen == FACE_GUIDE &&
+            checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+            faceCameraController == null
+        ) {
+            ensureFaceCameraPreview()
+        }
+        if (::model.isInitialized && screen == DOCUMENT_GUIDE &&
+            checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+            documentCameraController == null
+        ) {
+            ensureDocumentCameraPreview()
+        }
         settingsReturnPurpose?.let { purpose ->
             settingsReturnPurpose = null
             val phoneGranted = permissionGranted(Manifest.permission.READ_PHONE_STATE)
@@ -285,11 +411,27 @@ class MainActivity : Activity() {
         else if (!homeDataResolved) loadHomeData()
     }
 
+    override fun onStart() {
+        super.onStart()
+        activityLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_START)
+    }
+
+    override fun onPause() {
+        activityLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        super.onPause()
+    }
+
+    override fun onStop() {
+        activityLifecycle.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        super.onStop()
+    }
+
     private fun <T> apiCall(
         message: String,
         request: suspend () -> T,
         onFailure: ((Exception) -> Unit)? = null,
         showLoadingDialog: Boolean = true,
+        suppressFailureNotice: (Exception) -> Boolean = { false },
         onSuccess: (T) -> Unit
     ) {
         activityScope.launch {
@@ -304,7 +446,7 @@ class MainActivity : Activity() {
                     model.state.putBoolean("signedIn", false)
                     model.root(SIGN_IN)
                     notice("Login expired. Please sign in again.")
-                } else {
+                } else if (!suppressFailureNotice(failure)) {
                     notice(failure.message ?: "Unable to connect. Please try again.")
                 }
             } finally {
@@ -441,7 +583,22 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == CAMERA_PERMISSION_REQUEST) {
-            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) takePhoto()
+            model.state.putBoolean("cameraPermissionRequested", true)
+            if (screen == FACE_GUIDE) {
+                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                    ensureFaceCameraPreview()
+                } else {
+                    setFaceCameraStatus(getString(CoreR.string.face_camera_retry_permission))
+                    notice("Allow camera access to take this photo.")
+                }
+            } else if (screen == DOCUMENT_GUIDE) {
+                if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                    ensureDocumentCameraPreview()
+                } else {
+                    setDocumentCameraStatus("Camera access is required. Tap here to retry.")
+                    notice("Allow camera access to capture the document.")
+                }
+            } else if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) takePhoto()
             else notice("Allow camera access to take this photo.")
             return
         }
@@ -457,7 +614,7 @@ class MainActivity : Activity() {
         // Start the state-specific home request before first-open and OPEN_APP requests.
         apiCall("Loading products…", {
             fetchHomeData(signedIn)
-        }, onFailure = { finishHomeDataLoadAfterFailure() }, showLoadingDialog = false) { (products, userInfo, _) ->
+        }, onFailure = { finishHomeDataLoadAfterFailure() }) { (products, userInfo, _) ->
             applyHomeData(products, signedIn, userInfo)
         }
         requestFirstOpenForHomeResume()
@@ -487,24 +644,34 @@ class MainActivity : Activity() {
     ) {
         homeDataLoading = false
         homeDataResolved = true
-        homeProducts = products
+        homeProducts = org.json.JSONArray().apply {
+            for (index in 0 until products.length()) {
+                products.optJSONObject(index)?.let(::put)
+            }
+        }
+        homeHasRealProducts = homeProducts.length() > 0
         homeInfoSignedIn = signedIn
-        val hasOrders = signedIn && (0 until products.length()).any { index ->
-            val status = products.optJSONObject(index)?.optJSONObject(ApiField.ORDER_INFO)
+        if (signedIn && userInfo != null) {
+            model.state.putInt(HOME_USER_STATUS, userInfo.optInt(ApiField.USER_STATUS, -1))
+        } else {
+            model.state.remove(HOME_USER_STATUS)
+        }
+        val hasOrders = signedIn && (0 until homeProducts.length()).any { index ->
+            val status = homeProducts.optJSONObject(index)?.optJSONObject(ApiField.ORDER_INFO)
                 ?.optInt(ApiField.LOAN_STATUS, 0) ?: 0
             status in 1..6
         }
         model.state.putBoolean("hasOrder", hasOrders)
-        products.optJSONObject(0)?.optString(ApiField.PRODUCT_ID)?.takeIf(String::isNotBlank)?.let {
+        homeProducts.optJSONObject(0)?.optString(ApiField.PRODUCT_ID)?.takeIf(String::isNotBlank)?.let {
             model.state.putString("selectedProductId", it)
-        }
+        } ?: model.state.remove("selectedProductId")
         userInfo?.let(::maybeShowServerPrompts)
         invalidateCachedHomePages()
 
         val destination = when {
             hasOrders -> HOME_ACTIVE
-            signedIn && products.length() <= 1 -> HOME_APPLIED
-            products.length() > 1 -> HOME_PRODUCTS
+            signedIn && homeProducts.length() <= 1 -> HOME_APPLIED
+            homeProducts.length() > 1 -> HOME_PRODUCTS
             else -> HOME
         }
         model.rememberHomeDestination(destination)
@@ -516,32 +683,64 @@ class MainActivity : Activity() {
                 forceHomePageRebuild = false
             }
         }
+        pendingApplicationProductId?.let { productId ->
+            pendingApplicationProductId = null
+            val userStatus = model.state.getInt(HOME_USER_STATUS, -1)
+            if (userStatus in 1..2) openApplicationForProduct(productId, userStatus)
+            else notice("Unable to confirm your account status. Please try again.")
+        }
     }
 
     private fun finishHomeDataLoadAfterFailure() {
         homeDataLoading = false
-        if (homeDataResolved) return
         homeDataResolved = true
-        if (::stage.isInitialized) setHomeSkeletonVisibility(false)
+        homeProducts = org.json.JSONArray()
+        homeHasRealProducts = false
+        model.state.remove(HOME_USER_STATUS)
+        model.state.remove("selectedProductId")
+        pendingApplicationProductId?.let {
+            pendingApplicationProductId = null
+            notice("Unable to load your account status. Please try again.")
+        }
+        invalidateCachedHomePages()
+        if (::stage.isInitialized && screen in homeScreens) {
+            forceHomePageRebuild = true
+            try {
+                model.root(if (model.signedIn) HOME_APPLIED else HOME)
+            } finally {
+                forceHomePageRebuild = false
+            }
+        }
+    }
+
+    private fun displayHomeProducts(): org.json.JSONArray {
+        if (homeHasRealProducts) return homeProducts
+        return org.json.JSONArray().put(org.json.JSONObject().apply {
+            put(ApiField.PRODUCT_NAME, getString(CoreR.string.text_name))
+            put(ApiField.PRODUCT_AMOUNT, getString(CoreR.string.text_ghs_100_000_ghs_3_000_000))
+            put(ApiField.PRODUCT_DAYS, getString(CoreR.string.text_91_360_days))
+            put(ApiField.PRODUCT_RATE, getString(CoreR.string.text_2_charge))
+            put(ApiField.PRODUCT_APR, getString(CoreR.string.text_22))
+        })
     }
 
     private fun bindHomePage(page: Screen) {
         if (page !in setOf(HOME, HOME_ACTIVE, HOME_PRODUCTS, HOME_APPLIED)) return
         when (page) {
             HOME, HOME_APPLIED -> {
-                val product = homeProducts.optJSONObject(0)
-                val showLoadingSkeleton = page == HOME && !homeDataResolved
-                setHomeBandVisibility(176f, 458f, product != null || showLoadingSkeleton)
+                val product = displayHomeProducts().optJSONObject(0)
+                setHomeBandVisibility(176f, 458f, product != null)
                 bindProductCard(176f, product, showStatus = homeInfoSignedIn)
             }
             HOME_PRODUCTS -> {
                 val starts = listOf(176f, 478f, 780f)
+                val products = displayHomeProducts()
                 starts.forEachIndexed { index, top ->
-                    val product = homeProducts.optJSONObject(index)
+                    val product = products.optJSONObject(index)
                     setHomeBandVisibility(top, top + 282f, product != null)
                     if (product != null) bindProductCard(top, product, showStatus = homeInfoSignedIn)
                 }
-                if (homeProducts.length() == 2) compactHomeFooter(760f)
+                if (homeHasRealProducts && homeProducts.length() == 2) compactHomeFooter(760f)
             }
             HOME_ACTIVE -> {
                 val first = homeProducts.optJSONObject(0)
@@ -552,18 +751,17 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun setHomeSkeletonVisibility(visible: Boolean) {
-        for (index in 0 until stage.childCount) {
-            val child = stage.getChildAt(index)
-            if (child.tag == HOME_SKELETON_TAG) {
-                child.visibility = if (visible) View.VISIBLE else View.GONE
-            }
-        }
-    }
-
     private fun bindProductCard(top: Float, product: org.json.JSONObject?, showStatus: Boolean) {
         if (product == null) return
         val bottom = top + 282f
+        val productId = product.optString(ApiField.PRODUCT_ID).trim()
+        val applyLabels = setOf(getString(CoreR.string.text_begin_application), "Apply Now", "Go Apply")
+        (0 until stage.childCount).map(stage::getChildAt)
+            .filter { child ->
+                val childTop = dpTop(child)
+                childTop >= top && childTop < bottom && (child.tag as? String) in applyLabels
+            }
+            .forEach { homeProductActionIds[it] = productId }
         val textViews = (0 until stage.childCount).map(stage::getChildAt)
             .filterIsInstance<TextView>()
             .filter { dpTop(it) >= top && dpTop(it) < bottom }
@@ -660,7 +858,7 @@ class MainActivity : Activity() {
                         view.maxLines = 1
                         view.ellipsize = android.text.TextUtils.TruncateAt.END
                         view.gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                        view.layoutParams = view.layoutParams.apply { width = dp(126f) }
+                        pageConstraints.setWidth(view, 126f)
                     }
                     getString(CoreR.string.text_jkd1232312312312312312) -> if (orderNumber.isNotBlank()) view.text = orderNumber
                     getString(CoreR.string.text_30_12_2020) -> if (applyDate.isNotBlank()) view.text = applyDate
@@ -782,6 +980,174 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun bindOrderProductDetails() {
+        if (!model.state.getBoolean(PRODUCT_APPLICATION_FLOW, false)) return
+        val json = model.state.getString(LOAN_PRODUCT_JSON).orEmpty()
+        val product = runCatching { LoanProductInfo.from(org.json.JSONObject(json)) }.getOrNull()
+            ?: return
+        if (product.productId.isBlank()) return
+
+        val nameView = textViewsWithTag(CoreR.string.text_name).firstOrNull()
+        nameView?.let {
+            it.text = product.name
+            it.visibility = if (product.name.isBlank()) View.GONE else View.VISIBLE
+            it.contentDescription = product.name
+        }
+        bindOrderProductValue(
+            CoreR.string.text_ghs_100_000,
+            CoreR.string.text_amount,
+            product.amount,
+            ::formatProductAmount
+        )
+        bindOrderProductValue(
+            CoreR.string.text_ghs_400_000_00,
+            CoreR.string.text_received_amount_2db3a,
+            product.payAmount,
+            ::formatProductAmount
+        )
+        bindOrderProductValue(
+            CoreR.string.text_ghs_400,
+            CoreR.string.text_full_service_fee_38062,
+            product.fullServiceFee,
+            ::formatProductAmount
+        )
+        bindOrderProductValue(
+            CoreR.string.text_19_10_2024,
+            CoreR.string.text_repayment_date_a244a,
+            product.repayDate
+        )
+        bindOrderProductValue(
+            CoreR.string.text_7_days,
+            CoreR.string.text_loan_term,
+            product.days,
+            ::formatProductDays
+        )
+
+        if (product.logo.isNotBlank()) addOrderProductLogo(product.logo, product.name)
+
+        val repayTop = 443f
+        if (product.repayAmount.isNotBlank()) {
+            addOrderProductText(
+                getString(CoreR.string.text_repayment_amount),
+                40f,
+                repayTop,
+                150f,
+                18f,
+                14f,
+                0xff999999.toInt(),
+                Gravity.START or Gravity.CENTER_VERTICAL
+            )
+            addOrderProductText(
+                formatProductAmount(product.repayAmount),
+                232f,
+                repayTop,
+                106f,
+                18f,
+                14f,
+                0xff120d01.toInt(),
+                Gravity.END or Gravity.CENTER_VERTICAL
+            )
+        }
+
+        val feeDetails = listOfNotNull(
+            product.verificationFee.takeIf(String::isNotBlank)?.let {
+                "${getString(CoreR.string.text_verification_fee)}: $it"
+            },
+            product.gstFee.takeIf(String::isNotBlank)?.let { "${getString(CoreR.string.text_gst_fee)}: $it" },
+            product.interest.takeIf(String::isNotBlank)?.let { "${getString(CoreR.string.text_interest_fee)}: $it" },
+            product.overdue.takeIf(String::isNotBlank)?.let { "${getString(CoreR.string.text_overdue_rate)}: $it" }
+        ).joinToString(" · ")
+        if (feeDetails.isNotBlank()) {
+            val feeTop = if (product.repayAmount.isNotBlank()) 471f else repayTop
+            addOrderProductText(
+                getString(CoreR.string.text_fee_details),
+                40f,
+                feeTop,
+                80f,
+                36f,
+                12f,
+                0xff999999.toInt(),
+                Gravity.START or Gravity.CENTER_VERTICAL
+            )
+            addOrderProductText(
+                feeDetails,
+                120f,
+                feeTop,
+                218f,
+                36f,
+                12f,
+                0xff120d01.toInt(),
+                Gravity.START or Gravity.CENTER_VERTICAL
+            ).apply {
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                contentDescription = feeDetails
+            }
+        }
+    }
+
+    private fun bindOrderProductValue(
+        valueTag: Int,
+        labelTag: Int,
+        value: String,
+        format: (String) -> String = { it }
+    ) {
+        val visible = value.isNotBlank()
+        textViewsWithTag(valueTag).forEach { view ->
+            view.visibility = if (visible) View.VISIBLE else View.GONE
+            if (visible) view.text = format(value)
+        }
+        textViewsWithTag(labelTag).forEach { view ->
+            view.visibility = if (visible) View.VISIBLE else View.GONE
+        }
+    }
+
+    private fun textViewsWithTag(tag: Int): List<TextView> {
+        val text = getString(tag)
+        return (0 until stage.childCount).map(stage::getChildAt)
+            .filterIsInstance<TextView>()
+            .filter { it.tag == text }
+    }
+
+    private fun addOrderProductText(
+        text: String,
+        left: Float,
+        top: Float,
+        width: Float,
+        height: Float,
+        sizeSp: Float,
+        color: Int,
+        gravity: Int
+    ): TextView = TextView(this).apply {
+        this.text = text
+        setTextColor(color)
+        textSize = sizeSp
+        typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        includeFontPadding = false
+        this.gravity = gravity
+        pageConstraints.add(this, left, top, width, height)
+    }
+
+    private fun addOrderProductLogo(url: String, productName: String) {
+        val image = ImageView(this).apply {
+            tag = ORDER_PRODUCT_LOGO_TAG
+            contentDescription = productName.takeIf(String::isNotBlank)?.let { "$it logo" } ?: "Product logo"
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.WHITE)
+            }
+            clipToOutline = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        pageConstraints.add(image, left = 141f, top = 163f, width = 40f, height = 40f)
+        val owner = stage
+        activityScope.launch {
+            val bitmap = api.productLogo(url) ?: return@launch
+            if (!isFinishing && !isDestroyed && image.parent === owner) image.setImageBitmap(bitmap)
+        }
+    }
+
     private fun dp(value: Float): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private fun isBottomTabPage(page: Screen) =
@@ -795,7 +1161,6 @@ class MainActivity : Activity() {
             stage = stage,
             pageConstraints = pageConstraints,
             footerConstraints = footerConstraints,
-            pageScrim = pageScrim,
             stickyAppBarViews = stickyAppBarViews,
             stickyAppBarBackground = stickyAppBarBackground,
             scrollY = viewport.scrollY
@@ -809,10 +1174,10 @@ class MainActivity : Activity() {
             .hideSoftInputFromWindow(viewport.windowToken, 0)
         stickyAppBarViews = cached.stickyAppBarViews
         stickyAppBarBackground = cached.stickyAppBarBackground
-        pageScrim = cached.pageScrim
         stage = cached.stage
         pageConstraints = cached.pageConstraints
         footerConstraints = cached.footerConstraints
+        orderListContainer = stage.findViewWithTag(ORDERS_LIST_TAG)
         fields.clear()
         viewport.removeAllViews()
         viewport.addView(stage)
@@ -823,7 +1188,6 @@ class MainActivity : Activity() {
         statusBarBackground.visibility = View.VISIBLE
         val decor = window.decorView
         decor.systemUiVisibility = decor.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-        setHomeSkeletonVisibility(page == HOME && !homeDataResolved)
         if (page == ORDERS || page == ORDERS_EMPTY) configureOrderTabs(selectedOrderFilter())
         updatePageWidth()
         renderedScreen = page
@@ -833,7 +1197,6 @@ class MainActivity : Activity() {
             viewport.scrollTo(0, targetScroll)
             stickyAppBarViews.forEach { it.translationY = targetScroll.toFloat() }
             stickyAppBarBackground?.translationY = targetScroll.toFloat()
-            updateFullScreenScrim()
         }
     }
 
@@ -842,12 +1205,51 @@ class MainActivity : Activity() {
     }
 
     private fun show(page: Screen) {
+        val wasShowingDialog = screenDialog != null
+        screenDialog?.dismiss()
+        screenDialog = null
+        if (page in popupPages) {
+            if (renderedScreen == null) {
+                renderPage(model.previousPage(popupPages.keys) ?: popupPages.getValue(page))
+            }
+            if (page == RATING || page == RATING_CHANGED) {
+                showRatingPanel(page, onCancel = ::leave) { score, comment ->
+                    if (layoutPreview) {
+                        if (score in 1..3) model.go(RATING_FEEDBACK, replace = true) else leave()
+                    } else {
+                        apiCall("Saving your feedback…", { api.submitRating("1", score, comment) }) {
+                            if (score in 1..3) model.go(RATING_FEEDBACK, replace = true)
+                            else {
+                                leave()
+                                openStoreRating()
+                            }
+                        }
+                    }
+                }
+            } else {
+                showPanel(page, onCancel = ::leave) { _, panel ->
+                    bindPanelActions(panel) { label, view -> handle(label, view, panel.indexOfChild(view)) }
+                }
+            }
+            return
+        }
+        if (wasShowingDialog && page == renderedScreen) return
+        renderPage(page)
+    }
+
+    private fun renderPage(page: Screen) {
+        if (page == KYC_EXIT) {
+            showKycExitDialog()
+            return
+        }
+        if (page != FACE_GUIDE || renderedScreen == FACE_GUIDE) releaseFaceCamera()
+        if (page != DOCUMENT_GUIDE || renderedScreen == DOCUMENT_GUIDE) releaseDocumentCamera()
         if (forceHomePageRebuild) {
             renderedScreen?.takeIf { it in homeScreens }?.let(cachedTabPages::remove)
         } else {
             rememberRenderedTabPage()
         }
-        val isLandscapePage = page == DOCUMENT_GUIDE || page == DOCUMENT_PREVIEW
+        val isLandscapePage = page == DOCUMENT_GUIDE
         val requiredOrientation = if (isLandscapePage) {
             Configuration.ORIENTATION_LANDSCAPE
         } else {
@@ -876,7 +1278,6 @@ class MainActivity : Activity() {
                 return
             }
         }
-        if (page != DOCUMENT_PREVIEW) clearDocumentCapturePreview()
         form.beginScreen()
         if (!layoutPreview) {
             trackAuthScreenTransition(page)
@@ -884,25 +1285,15 @@ class MainActivity : Activity() {
             if (page == PRIVACY) trackServiceEvent("CLICK_PRIVACY_BUTTO")
         }
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(viewport.windowToken, 0)
-        clearOrderSkeletonViews()
         stickyAppBarViews = emptyList()
         stickyAppBarBackground = null
-        pageScrim = null
         viewport.removeAllViews()
-        val contentPage = if (page == LOGOUT) PROFILE else page
-        stage = layoutInflater.inflate(pages.getValue(contentPage), viewport, false) as ConstraintLayout
+        orderListContainer = null
+        stage = layoutInflater.inflate(pages.getValue(page), viewport, false) as ViewGroup
         pageConstraints = ScreenConstraints(stage)
-        if (page == LOGOUT) addLogoutOverlay()
-        pageScrim = (0 until stage.childCount)
-            .map(stage::getChildAt)
-            .firstOrNull { child ->
-                val params = child.layoutParams as? ConstraintLayout.LayoutParams
-                child.isClickable && child.background != null && abs(child.alpha - 0.4f) < 0.01f &&
-                    params != null && params.topMargin < 0
-            }
+        updateIdentityDocumentInstruction(page)
         if (!layoutPreview) {
             bindHomePage(page)
-            setHomeSkeletonVisibility(page == HOME && !homeDataResolved)
         }
         val fullBleed = page == WELCOME
         statusBarBackground.visibility = if (fullBleed) View.GONE else View.VISIBLE
@@ -916,13 +1307,16 @@ class MainActivity : Activity() {
         for (i in 0 until stage.childCount) {
             val view = stage.getChildAt(i)
             val label = view.tag as? String ?: continue
-            if (label == HOME_SKELETON_TAG) continue
+            if (label == ORDERS_LIST_TAG) continue
             when (view) {
                 is EditText -> {
                     fields += view
                     // Preserve the keys used by saved login forms before the layout update.
                     val fieldIndex = if (page == SIGN_IN) 6 + fields.size else i
-                    form.input(view, page, fieldIndex)
+                    val fixedPrefix = if (
+                        page == IDENTITY_CARD && view.id == IdentityR.id.identity_card_number_input
+                    ) "GHA-" else null
+                    form.input(view, page, fieldIndex, fixedPrefix)
                 }
                 is CheckBox -> {
                     val key = "agreement_" + page.name
@@ -939,48 +1333,71 @@ class MainActivity : Activity() {
                 }
             }
         }
-        if (page == ORDERS) captureOrderCardSlots()
+        if (page in kycCertificatePages) bindKycCertificateType(page, stage)
+        if (page == ORDERS && !layoutPreview) {
+            hideStaticOrderCardViews()
+            createOrderListContainer()
+        }
         val footer = findViewById<FrameLayout>(R.id.footer)
         footer.removeAllViews()
         val footerHeight = when (page) {
             PRIVACY -> 131
             HOME, HOME_APPLIED, HOME_PRODUCTS, HOME_ACTIVE, ELIGIBLE, ORDERS, ORDERS_EMPTY,
-            PROFILE, PROFILE_GUEST, LOGOUT -> 74
+            PROFILE, PROFILE_GUEST -> 74
             else -> 0
         }
         footerConstraints = if (footerHeight > 0) pageConstraints.detachFooter(footerHeight) else null
+        if (page == PRIVACY) pageConstraints.setContentHeight(0f)
         footerConstraints?.let { footer.addView(it.layout) }
-        if (page == LOGOUT) {
-            footerConstraints?.add(View(this).apply {
-                setBackgroundResource(CoreR.drawable.surface_8590b20b986a)
-                alpha = 0.4f
-                isClickable = true
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, left = 0f, top = 0f, width = 375f, height = 74f)
-        }
-        if (page == DOCUMENT_GUIDE || page == DOCUMENT_PREVIEW) {
+        if (page == DOCUMENT_GUIDE) {
             viewport.addView(stage, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER
             ))
         } else {
             viewport.addView(stage)
         }
+        if (page == ORDER_DETAIL && !layoutPreview) bindOrderProductDetails()
         updatePageWidth()
-        if (page == DOCUMENT_PREVIEW) {
-            documentCapturePreview?.takeUnless(Bitmap::isRecycled)?.let { bitmap ->
-                val image = ImageView(this).apply {
-                    setImageBitmap(bitmap)
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                    setBackgroundColor(Color.WHITE)
-                    contentDescription = "Captured document photo"
-                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        if (page == CITY) bindCityPicker()
+        if (page == FACE_GUIDE && !layoutPreview) configureFaceCamera(stage)
+        else if (page == FACE_GUIDE) {
+            stage.findViewById<FrameLayout>(IdentityR.id.face_camera_preview_container)
+                ?.setBackgroundColor(Color.WHITE)
+        }
+        if (page == DOCUMENT_GUIDE && !layoutPreview) configureDocumentCamera(stage)
+        if (page in setOf(IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD)) {
+            val bitmap = documentCapturePreviews[page]?.takeUnless(Bitmap::isRecycled)
+            if (bitmap != null) {
+                val anchorId = when (page) {
+                    IDENTITY_CARD -> IdentityR.id.identity_card_anchor_11
+                    DRIVER_LICENSE -> IdentityR.id.driver_license_anchor_13
+                    else -> IdentityR.id.voter_card_anchor_13
                 }
-                pageConstraints.add(image, left = 45f, top = 69f, width = 548f, height = 280f)
+                stage.findViewById<View>(anchorId)?.let { anchor ->
+                    addBitmapPreviewInFrame(
+                        anchor,
+                        bitmap,
+                        "Captured identity document photo",
+                        drawBorder = true
+                    ) {
+                        pendingDocumentScreen = page
+                        go(DOCUMENT_GUIDE)
+                    }
+                }
+            }
+        }
+        if (page == IDENTITY_FILLED) {
+            val cardScreen = runCatching {
+                Screen.valueOf(model.state.getString("authenticationCardScreen").orEmpty())
+            }.getOrDefault(IDENTITY_CARD)
+            documentCapturePreviews[cardScreen]?.takeUnless(Bitmap::isRecycled)?.let { bitmap ->
+                stage.findViewById<View>(IdentityR.id.identity_filled_document_preview_frame)?.let { anchor ->
+                    addBitmapPreviewInFrame(anchor, bitmap, "Captured identity document photo", onClick = null)
+                }
             }
         }
         configureStickyAppBar()
         if (page == ORDERS || page == ORDERS_EMPTY) {
-            fullOrdersHeight = pageConstraints.referenceHeight - footerHeight
             val currentFilter = selectedOrderFilter()
             configureOrderTabs(currentFilter)
             if (page == ORDERS && !layoutPreview) renderOrderCards(currentFilter)
@@ -1003,13 +1420,6 @@ class MainActivity : Activity() {
             })
         }
         viewport.scrollTo(0, 0)
-        if (page == DOCUMENT_PREVIEW) {
-            val destination = pendingDocumentScreen ?: IDENTITY_CARD
-            stage.setOnClickListener {
-                pendingDocumentScreen = null
-                model.go(destination, true)
-            }
-        }
         if (page == WELCOME) {
             stage.setOnClickListener { startJourney() }
             if (!layoutPreview) {
@@ -1018,10 +1428,29 @@ class MainActivity : Activity() {
         }
         if (page == REVIEW_COUNTDOWN) countdown(60)
         if (page == FACE_PREVIEW && preview != null) {
-            val image = ImageView(this)
-            image.setImageBitmap(preview)
-            image.scaleType = ImageView.ScaleType.FIT_CENTER
-            pageConstraints.add(image, left = 20f, top = 85f, width = 335f, height = 535f)
+            stage.findViewById<View>(IdentityR.id.face_preview_photo_frame)?.let { anchor ->
+                addBitmapPreviewInFrame(anchor, preview!!, "Selfie photo preview", onClick = null)
+            }
+        }
+        if (page == IDENTITY_FILLED) {
+            preview?.takeUnless(Bitmap::isRecycled)?.let { selfie ->
+                stage.findViewById<View>(IdentityR.id.identity_filled_anchor_31)?.let { anchor ->
+                    addBitmapPreviewInFrame(anchor, selfie, "Verified selfie photo", onClick = null)
+                }
+                stage.findViewById<View>(IdentityR.id.identity_filled_selfie_success_background)?.bringToFront()
+                stage.findViewById<View>(IdentityR.id.identity_filled_selfie_success_icon)?.bringToFront()
+            }
+            if (!model.state.getString("livenessImage").isNullOrBlank()) {
+                listOfNotNull(
+                    stage.findViewWithTag<View>("Capture selfie"),
+                    stage.findViewWithTag<View>("Upload a clear selfie")
+                ).forEach { view ->
+                    view.isEnabled = false
+                    view.isClickable = false
+                    view.isFocusable = false
+                    view.setOnClickListener(null)
+                }
+            }
         }
         stage.expandActionHitAreas()
         footerConstraints?.layout?.expandActionHitAreas()
@@ -1032,7 +1461,6 @@ class MainActivity : Activity() {
                 stage = stage,
                 pageConstraints = pageConstraints,
                 footerConstraints = footerConstraints,
-                pageScrim = pageScrim,
                 stickyAppBarViews = stickyAppBarViews,
                 stickyAppBarBackground = stickyAppBarBackground,
                 scrollY = viewport.scrollY
@@ -1044,7 +1472,7 @@ class MainActivity : Activity() {
         if (!::pageConstraints.isInitialized) return
         val viewportWidth = viewport.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
         var contentWidth = viewportWidth
-        if (screen in setOf(DOCUMENT_GUIDE, DOCUMENT_PREVIEW) && viewport.height > 0) {
+        if (screen == DOCUMENT_GUIDE && viewport.height > 0) {
             contentWidth = pageConstraints.widthFittingHeight(viewportWidth, viewport.height)
             val params = stage.layoutParams
             if (params.width != contentWidth) {
@@ -1053,8 +1481,153 @@ class MainActivity : Activity() {
             }
         }
         pageConstraints.updateWidth(contentWidth)
+        if (screen in kycCertificatePages) {
+            stage.findViewById<TextView>(IdentityR.id.kyc_certificate_type_value)
+                ?.disableKycChoiceAutoSize()
+            stage.findViewById<TextView>(IdentityR.id.kyc_birth_date_value)
+                ?.disableKycChoiceAutoSize()
+            stage.findViewById<TextView>(IdentityR.id.kyc_gender_value)
+                ?.disableKycChoiceAutoSize()
+            resizeKycGenderChoice(screen, stage)
+        }
         footerConstraints?.updateWidth(viewportWidth)
-        updateFullScreenScrim()
+    }
+
+    private fun TextView.disableKycChoiceAutoSize() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE)
+        }
+        isSingleLine = false
+        maxLines = Int.MAX_VALUE
+        ellipsize = null
+    }
+
+    private fun selectedCertificateScreen(): Screen {
+        val selected = runCatching {
+            Screen.valueOf(model.state.getString("authenticationCardScreen").orEmpty())
+        }.getOrNull()?.takeIf { it in identityCardPages } ?: IDENTITY_CARD
+        model.state.putString("authenticationCardScreen", selected.name)
+        return selected
+    }
+
+    private fun bindKycCertificateType(page: Screen, owner: ViewGroup) {
+        if (page !in kycCertificatePages) return
+        val value = owner.findViewById<TextView>(IdentityR.id.kyc_certificate_type_value) ?: return
+        value.text = when (selectedCertificateScreen()) {
+            DRIVER_LICENSE -> "Driving License"
+            VOTER_CARD -> "Voter Card"
+            else -> "ID Card"
+        }
+        value.setTextColor(Color.rgb(18, 13, 1))
+        val placeholder = getString(CoreR.string.text_choose)
+        listOf(
+            IdentityR.id.kyc_birth_date_value,
+            IdentityR.id.kyc_gender_value
+        ).mapNotNull { owner.findViewById<TextView>(it) }.forEach { choice ->
+            choice.setTextColor(
+                if (choice.text.toString() == placeholder) Color.rgb(153, 153, 153)
+                else Color.rgb(18, 13, 1)
+            )
+        }
+    }
+
+    private fun resizeKycGenderChoice(page: Screen, owner: ViewGroup) {
+        if (page !in kycCertificatePages) return
+        val value = owner.findViewById<TextView>(IdentityR.id.kyc_gender_value) ?: return
+        val rowId = when (page) {
+            IDENTITY_CARD -> IdentityR.id.identity_card_anchor_25
+            DRIVER_LICENSE -> IdentityR.id.driver_license_anchor_27
+            VOTER_CARD -> IdentityR.id.voter_card_anchor_27
+            else -> IdentityR.id.identity_filled_anchor_27
+        }
+        val row = owner.findViewById<View>(rowId) ?: return
+        val arrow = owner.findViewById<View>(IdentityR.id.kyc_gender_arrow)
+        value.disableKycChoiceAutoSize()
+        if (value.text.toString() != getString(CoreR.string.text_choose)) {
+            value.setTextColor(Color.rgb(18, 13, 1))
+        }
+        value.post {
+            if (owner !== stage || screen != page || value.width <= 0) return@post
+            val density = resources.displayMetrics.density
+            val textLayout = if (value.text.isEmpty()) null else StaticLayout.Builder
+                .obtain(value.text, 0, value.text.length, value.paint, value.width)
+                .setIncludePad(false)
+                .build()
+            val textHeight = maxOf(
+                18f,
+                (textLayout?.height?.div(density) ?: 18f).roundToInt().toFloat()
+            )
+            val rowHeight = maxOf(40f, textHeight + 22f)
+            val rowParams = row.layoutParams as? ConstraintLayout.LayoutParams ?: return@post
+            val oldRowHeight = rowParams.dimensionRatio.substringAfterLast(':').toFloatOrNull() ?: 40f
+            val valueParams = value.layoutParams as? ConstraintLayout.LayoutParams ?: return@post
+            valueParams.dimensionRatio = "H,283:$textHeight"
+            value.layoutParams = valueParams
+            rowParams.dimensionRatio = "H,335:$rowHeight"
+            row.layoutParams = rowParams
+            val rowDelta = rowHeight - oldRowHeight
+            if (rowDelta != 0f) arrow?.let {
+                pageConstraints.moveTo(it, pageConstraints.top(it) + rowDelta / 2f)
+            }
+            pageConstraints.setContentHeight(pageConstraints.referenceHeight + (rowHeight - 40f))
+        }
+    }
+
+    private fun addBitmapPreviewInFrame(
+        anchor: View,
+        bitmap: Bitmap,
+        description: String,
+        drawBorder: Boolean = false,
+        onClick: (() -> Unit)? = null
+    ) {
+        val cornerRadius = 9f * resources.displayMetrics.density
+        val frame = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE)
+                this.cornerRadius = cornerRadius
+            }
+            clipToOutline = true
+            contentDescription = description
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        }
+        val photo = ImageView(this).apply {
+            setImageBitmap(bitmap)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        frame.addView(photo, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        if (drawBorder) {
+            val border = View(this).apply {
+                background = GradientDrawable().apply {
+                    setColor(Color.TRANSPARENT)
+                    setStroke((resources.displayMetrics.density).roundToInt().coerceAtLeast(1), Color.rgb(227, 227, 227))
+                    this.cornerRadius = cornerRadius
+                }
+                isClickable = false
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            frame.addView(border, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
+        if (onClick != null) {
+            frame.isClickable = true
+            frame.isFocusable = true
+            frame.setOnClickListener { onClick() }
+        }
+        pageConstraints.add(
+            frame,
+            left = pageConstraints.left(anchor),
+            top = pageConstraints.top(anchor),
+            width = pageConstraints.width(anchor),
+            height = pageConstraints.height(anchor)
+        )
     }
 
     private fun viewportMatchesOrientation(isLandscape: Boolean): Boolean {
@@ -1069,7 +1642,7 @@ class MainActivity : Activity() {
             viewport.isEnabled = true
             return
         }
-        val isLandscapePage = page == DOCUMENT_GUIDE || page == DOCUMENT_PREVIEW
+        val isLandscapePage = page == DOCUMENT_GUIDE
         val requiredOrientation = if (isLandscapePage) {
             Configuration.ORIENTATION_LANDSCAPE
         } else {
@@ -1095,61 +1668,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun updateFullScreenScrim() {
-        val scrim = pageScrim
-        val navigationBarColor = if (scrim != null) Color.rgb(160, 158, 153) else defaultNavigationBarColor
-        if (window.navigationBarColor != navigationBarColor) window.navigationBarColor = navigationBarColor
-        if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
-        scrim ?: return
-        val params = scrim.layoutParams as? ConstraintLayout.LayoutParams ?: return
-        var changed = false
-        if (params.width != 0) {
-            params.width = 0
-            changed = true
-        }
-        if (params.height != 0) {
-            params.height = 0
-            changed = true
-        }
-        if (params.dimensionRatio != null) {
-            params.dimensionRatio = null
-            changed = true
-        }
-        if (params.leftToLeft != ConstraintLayout.LayoutParams.PARENT_ID ||
-            params.rightToRight != ConstraintLayout.LayoutParams.PARENT_ID ||
-            params.topToTop != ConstraintLayout.LayoutParams.PARENT_ID ||
-            params.bottomToBottom != ConstraintLayout.LayoutParams.PARENT_ID ||
-            params.bottomMargin != 0
-        ) {
-            params.leftToLeft = ConstraintLayout.LayoutParams.PARENT_ID
-            params.rightToRight = ConstraintLayout.LayoutParams.PARENT_ID
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            params.leftMargin = 0
-            params.rightMargin = 0
-            params.bottomMargin = 0
-            changed = true
-        }
-        if (changed) scrim.layoutParams = params
-        val scrollOffset = viewport.scrollY.toFloat()
-        if (scrim.translationY != scrollOffset) scrim.translationY = scrollOffset
-    }
-
-    private fun addLogoutOverlay() {
-        val overlay = layoutInflater.inflate(AccountLayouts.screens.getValue(LOGOUT), stage, false) as ConstraintLayout
-        val overlayConstraints = ScreenConstraints(overlay)
-        val children = (0 until overlay.childCount).map(overlay::getChildAt)
-        children.forEach { child ->
-            val left = overlayConstraints.left(child)
-            val top = overlayConstraints.top(child)
-            val width = overlayConstraints.width(child)
-            val height = overlayConstraints.height(child)
-            overlay.removeView(child)
-            pageConstraints.add(child, left, top, width, height)
-        }
-    }
-
     private fun configureStickyAppBar() {
+        if (screen in setOf(SIGN_IN, DOCUMENT_GUIDE)) return
+        stage.findViewById<View>(AccountR.id.about_header)?.let { header ->
+            header.findViewById<View>(AccountR.id.about_back).setOnClickListener { onBackPressed() }
+            stickyAppBarViews = listOf(header)
+            return
+        }
         val children = (0 until stage.childCount).map(stage::getChildAt)
         val density = resources.displayMetrics.density
         fun centerY(view: View): Float {
@@ -1214,20 +1739,27 @@ class MainActivity : Activity() {
             setBackgroundColor(if (hasArtworkBehindHeader) Color.TRANSPARENT else Color.WHITE)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
-        val backgroundParams = ConstraintLayout.LayoutParams(
-            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-            pageConstraints.scaledPixels(appBarHeight)
-        ).apply {
-            leftToLeft = ConstraintLayout.LayoutParams.PARENT_ID
-            rightToRight = ConstraintLayout.LayoutParams.PARENT_ID
-            topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            topMargin = pageConstraints.scaledPixels(appBarTop)
-        }
         // Keep the header fixed with the page's own backdrop; no divider or elevation is added.
-        stage.addView(background, backgroundParams)
+        pageConstraints.add(background, left = 0f, top = appBarTop, width = designWidth, height = appBarHeight)
         pinned.forEach(stage::bringChildToFront)
         stickyAppBarViews = pinned
         stickyAppBarBackground = background
+    }
+
+    private fun updateIdentityDocumentInstruction(page: Screen) {
+        val certificate = when (page) {
+            IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD -> page
+            IDENTITY_FILLED -> runCatching {
+                Screen.valueOf(model.state.getString("authenticationCardScreen").orEmpty())
+            }.getOrDefault(IDENTITY_CARD)
+            else -> return
+        }
+        val textResource = when (certificate) {
+            DRIVER_LICENSE -> CoreR.string.text_upload_a_photo_of_the_front_of_your_driver_s_licen
+            VOTER_CARD -> CoreR.string.text_upload_a_photo_of_the_front_of_your_voter_card
+            else -> CoreR.string.text_upload_a_photo_of_the_front_of_your_id_card
+        }
+        stage.findViewById<TextView>(IdentityR.id.identity_document_instruction)?.setText(textResource)
     }
 
     private fun startOtpCooldown() {
@@ -1273,7 +1805,7 @@ class MainActivity : Activity() {
         }
     }
     private fun notice(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    private fun go(page: Screen) = model.go(page)
+    private fun go(page: Screen, replace: Boolean = false) = model.go(page, replace)
     private fun leave() { if (!model.back()) finish() }
 
     private suspend fun fetchUserInfo(recommended: Boolean = false): org.json.JSONObject {
@@ -1314,8 +1846,269 @@ class MainActivity : Activity() {
         arrays.forEach { (name, apiKey) ->
             model.state.putString("authOptions.$name", info.optJSONArray(apiKey)?.toString().orEmpty())
         }
+        model.state.putString("authOptions.regions", info.optJSONArray(ApiField.REGIONS)?.toString().orEmpty())
         return rangeValid
     }
+
+    private fun authenticationRegions(): List<CityRegion> = runCatching {
+        val regions = org.json.JSONArray(model.state.getString("authOptions.regions").orEmpty())
+        buildList {
+            for (index in 0 until regions.length()) {
+                val region = regions.optJSONObject(index) ?: continue
+                val province = region.optString(ApiField.PROVINCE).trim()
+                if (province.isBlank()) continue
+                val districtsJson = region.optJSONArray(ApiField.REGION_DISTRICTS) ?: org.json.JSONArray()
+                val districts = (0 until districtsJson.length())
+                    .map { districtsJson.optString(it).trim() }
+                    .filter(String::isNotBlank)
+                    .distinct()
+                add(CityRegion(province, districts))
+            }
+        }.distinctBy(CityRegion::province)
+    }.getOrDefault(emptyList())
+
+    private fun openCityPicker() {
+        val regions = authenticationRegions()
+        if (regions.isNotEmpty()) {
+            enterCityPicker(regions)
+            return
+        }
+        notice("Location options are unavailable. Please try again later.")
+    }
+
+    private fun enterCityPicker(regions: List<CityRegion>) {
+        val savedProvince = model.state.getString("authentication.province").orEmpty()
+        val rememberedProvince = model.state.getString("authentication.activeProvince").orEmpty()
+        val activeProvince = listOf(savedProvince, rememberedProvince)
+            .firstOrNull { candidate -> regions.any { it.province == candidate } }
+            ?: regions.first().province
+        model.state.putString("authentication.activeProvince", activeProvince)
+        go(CITY)
+    }
+
+    private fun bindCityPicker() {
+        cityPickerRegions = authenticationRegions()
+        cityPickerActiveProvince = model.state.getString("authentication.activeProvince").orEmpty()
+            .takeIf { province -> cityPickerRegions.any { it.province == province } }
+            ?: cityPickerRegions.firstOrNull()?.province.orEmpty()
+
+        val marker = stage.findViewById<View>(IdentityR.id.city_anchor_23)
+        cityPickerListTop = marker?.let(pageConstraints::top) ?: 116f
+        marker?.visibility = View.INVISIBLE
+
+        val placeholder = getString(CoreR.string.text_aaaaaaaaaaaaaaa)
+        (0 until stage.childCount).map(stage::getChildAt)
+            .filterIsInstance<TextView>()
+            .filter { it.text.toString() == placeholder }
+            .forEach { it.visibility = View.GONE }
+        stage.findViewById<View>(IdentityR.id.city_selected_check_template)?.visibility = View.GONE
+
+        val provinceScroll = createCityList(left = 20f, top = cityPickerListTop, width = 165f)
+        val districtScroll = createCityList(left = 185f, top = cityPickerListTop, width = 170f)
+        cityProvinceRows = provinceScroll.second
+        cityDistrictRows = districtScroll.second
+
+        citySearch = stage.findViewById<EditText>(IdentityR.id.city_search)?.also { search ->
+            search.setText("")
+            search.contentDescription = "Search provinces and districts"
+            search.imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            search.setOnEditorActionListener { field, _, _ ->
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .hideSoftInputFromWindow(field.windowToken, 0)
+                field.clearFocus()
+                true
+            }
+            search.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    renderCityPickerRows(s?.toString().orEmpty())
+                }
+                override fun afterTextChanged(s: Editable?) = Unit
+            })
+        }
+        stage.findViewById<View>(IdentityR.id.city_search_icon)?.setOnClickListener {
+            citySearch?.let { search ->
+                search.requestFocus()
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(search, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
+        renderCityPickerRows("")
+    }
+
+    private var cityPickerListTop = 116f
+
+    private fun createCityList(left: Float, top: Float, width: Float): Pair<ScrollView, LinearLayout> {
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false
+        }
+        val rows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(rows, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        pageConstraints.add(scroll, left, top, width, (768f - top - 20f).coerceAtLeast(100f))
+        return scroll to rows
+    }
+
+    private fun renderCityPickerRows(query: String) {
+        val provinceRows = cityProvinceRows ?: return
+        val districtRows = cityDistrictRows ?: return
+        val filter = query.trim()
+        val visibleProvinces = cityPickerRegions.filter { region ->
+            filter.isBlank() || region.province.contains(filter, ignoreCase = true) ||
+                region.districts.any { it.contains(filter, ignoreCase = true) }
+        }
+        val activeRegion = cityPickerRegions.firstOrNull { it.province == cityPickerActiveProvince }
+        provinceRows.removeAllViews()
+        districtRows.removeAllViews()
+
+        if (visibleProvinces.isEmpty()) {
+            addCityPickerEmptyRow(provinceRows, "No matching locations")
+        } else {
+            visibleProvinces.forEach { region ->
+                val selected = region.province == cityPickerActiveProvince
+                addCityPickerRow(
+                    provinceRows,
+                    region.province,
+                    selected,
+                    icon = if (selected) CoreR.drawable.art_48d2e428ed5e else CoreR.drawable.art_cef9729d96b6,
+                    iconWidth = 6,
+                    iconHeight = 12,
+                    showIcon = true,
+                    showProvinceMarker = true,
+                    description = if (selected) "${region.province}, selected" else region.province
+                ) {
+                    cityPickerActiveProvince = region.province
+                    model.state.putString("authentication.activeProvince", region.province)
+                    renderCityPickerRows(citySearch?.text?.toString().orEmpty())
+                    cityProvinceScrollTo(visibleProvinces.indexOf(region))
+                }
+            }
+        }
+
+        if (activeRegion == null || activeRegion.districts.isEmpty()) {
+            addCityPickerEmptyRow(districtRows, "No districts available")
+        } else {
+            val districtFilter = filter.takeUnless { activeRegion.province.contains(it, ignoreCase = true) }.orEmpty()
+            val matchingDistricts = activeRegion.districts.filter {
+                it.contains(districtFilter, ignoreCase = true)
+            }
+            if (matchingDistricts.isEmpty()) {
+                addCityPickerEmptyRow(districtRows, "No matching districts")
+            } else {
+                matchingDistricts.forEach { district ->
+                    val selected = model.state.getString("authentication.district").orEmpty() == district &&
+                        model.state.getString("authentication.province").orEmpty() == activeRegion.province
+                    addCityPickerRow(
+                        districtRows,
+                        district,
+                        selected,
+                        icon = CoreR.drawable.art_e896112ebee6,
+                        iconWidth = 10,
+                        iconHeight = 10,
+                        showIcon = selected,
+                        showProvinceMarker = false,
+                        description = if (selected) "$district, selected" else district
+                    ) {
+                        model.state.putString("authentication.province", activeRegion.province)
+                        model.state.putString("authentication.district", district)
+                        model.edit("PERSONAL_INFO_40", "${activeRegion.province}, $district")
+                        leave()
+                    }
+                }
+            }
+        }
+
+    }
+
+    private fun cityProvinceScrollTo(index: Int) {
+        cityProvinceRows?.parent?.let { parent ->
+            (parent as? View)?.post { (parent as? ScrollView)?.smoothScrollTo(0, index * dp(48)) }
+        }
+    }
+
+    private fun addCityPickerRow(
+        parent: LinearLayout,
+        text: String,
+        selected: Boolean,
+        icon: Int,
+        iconWidth: Int,
+        iconHeight: Int,
+        showIcon: Boolean,
+        showProvinceMarker: Boolean,
+        description: String,
+        onClick: () -> Unit
+    ) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(if (showProvinceMarker) 0 else dp(10), 0, dp(20), 0)
+            minimumHeight = dp(48)
+            isFocusable = true
+            isClickable = true
+            isSelected = selected
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            contentDescription = description
+            setOnClickListener { onClick() }
+        }
+        if (showProvinceMarker) {
+            val marker = View(this).apply {
+                setBackgroundResource(CoreR.drawable.surface_4bb301ba4c58)
+                visibility = if (selected) View.VISIBLE else View.INVISIBLE
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            row.addView(marker, LinearLayout.LayoutParams(dp(4), dp(16)).apply {
+                marginEnd = dp(6)
+            })
+        }
+        val label = TextView(this).apply {
+            this.text = text
+            textSize = 14f
+            setTextColor(if (selected) Color.rgb(18, 13, 1) else Color.rgb(110, 110, 110))
+            gravity = Gravity.CENTER_VERTICAL
+            includeFontPadding = false
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        row.addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+
+        val trailingIcon = ImageView(this).apply {
+            setImageResource(icon)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            visibility = if (showIcon) View.VISIBLE else View.INVISIBLE
+        }
+        val iconParams = LinearLayout.LayoutParams(dp(iconWidth), dp(iconHeight)).apply {
+            marginStart = dp(8)
+        }
+        row.addView(trailingIcon, iconParams)
+        parent.addView(row, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(48)
+        ))
+    }
+
+    private fun addCityPickerEmptyRow(parent: LinearLayout, message: String) {
+        val empty = TextView(this).apply {
+            text = message
+            textSize = 13f
+            setTextColor(Color.rgb(153, 153, 153))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), 0, dp(8), 0)
+            minHeight = dp(48)
+            isEnabled = false
+        }
+        parent.addView(empty, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            dp(48)
+        ))
+    }
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
 
     private fun savedAuthOptions(name: String): List<String> = runCatching {
         val array = org.json.JSONArray(model.state.getString("authOptions.$name").orEmpty())
@@ -1329,18 +2122,23 @@ class MainActivity : Activity() {
             37 -> savedAuthOptions("marriage")
             38 -> savedAuthOptions("workTitle")
             39 -> savedAuthOptions("industry")
-            11, 40 -> savedAuthOptions("salaryType")
+            11 -> savedAuthOptions("salaryType")
             else -> null
         }
         WALLET_SETUP, WALLET_EDIT -> if (label.contains("Wallet", ignoreCase = true)) savedAuthOptions("walletType") else null
         CONTACTS -> if (contactFieldIndices.any { it.third == index }) {
             savedAuthOptions("relation").ifEmpty { listOf("Parent", "Spouse", "Sibling", "Friend") }
         } else null
-        IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD -> if (label.contains("Gender", ignoreCase = true)) savedAuthOptions("gender") else null
+        IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD, IDENTITY_FILLED ->
+            if (label.contains("Gender", ignoreCase = true)) savedAuthOptions("gender") else null
         else -> null
     }
 
     private fun onAuthChoiceSelected(page: Screen, index: Int, value: String, owner: android.view.ViewGroup) {
+        if (page in kycCertificatePages) {
+            resizeKycGenderChoice(page, owner)
+            return
+        }
         if (page != PERSONAL_INFO) return
         val position = personalInfoChoiceOrder.indexOf(index)
         if (position < 0) return
@@ -1350,7 +2148,7 @@ class MainActivity : Activity() {
         val target = owner.findViewById<TextView>(targetId) ?: return
         target.post {
             if (screen == PERSONAL_INFO && model.field("PERSONAL_INFO_$nextIndex").isBlank()) {
-                form.choose(target, nextIndex, owner)
+                if (nextIndex == 40) openCityPicker() else form.choose(target, nextIndex, owner)
             }
         }
     }
@@ -1418,11 +2216,20 @@ class MainActivity : Activity() {
         model.edit("PERSONAL_INFO_37", info.optString(ApiField.MARITAL_STATUS))
         model.edit("PERSONAL_INFO_38", info.optString(ApiField.JOB_TITLE))
         model.edit("PERSONAL_INFO_39", info.optString(ApiField.INDUSTRY))
-        model.edit("PERSONAL_INFO_40", info.optString(ApiField.PAY_CYCLE))
         model.edit("PERSONAL_INFO_11", info.optString(ApiField.PAY_CYCLE))
         model.edit("PERSONAL_INFO_41", info.optString(ApiField.EMAIL))
         model.edit("PERSONAL_INFO_42", info.optString(ApiField.ADDRESS))
         model.edit("PERSONAL_INFO_43", info.optString(ApiField.MESSAGING_ACCOUNT))
+        info.optString(ApiField.PROVINCE).trim().takeIf(String::isNotBlank)?.let {
+            model.state.putString("authentication.province", it)
+        }
+        info.optString(ApiField.DISTRICT).trim().takeIf(String::isNotBlank)?.let {
+            model.state.putString("authentication.district", it)
+        }
+        model.edit("PERSONAL_INFO_40", listOf(
+            model.state.getString("authentication.province").orEmpty(),
+            model.state.getString("authentication.district").orEmpty()
+        ).filter(String::isNotBlank).joinToString(", "))
 
         val cardType = info.optString(ApiField.CARD_TYPE)
         val cardScreen = when {
@@ -1609,7 +2416,7 @@ class MainActivity : Activity() {
         homeDataLoading = true
         requestFirstOpenForHomeResume()
         apiCall("Refreshing account…", { fetchHomeData(signedIn = true) },
-            onFailure = { finishHomeDataLoadAfterFailure() }, showLoadingDialog = false) { info ->
+            onFailure = { finishHomeDataLoadAfterFailure() }) { info ->
             applyHomeData(info.first, true, info.second)
         }
     }
@@ -1649,54 +2456,132 @@ class MainActivity : Activity() {
     }
 
     private fun showServerRatingPrompt(lowScoreTips: String) {
-        var selectedScore = 0
-        var callbackSent = false
-        val feedbackText = EditText(this).apply {
-            hint = "Tell us what you think (optional)"
-            minLines = 2
-            setPadding(32, 12, 32, 12)
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("How would you rate Cedi Plus?")
-            .setSingleChoiceItems(arrayOf("1 star", "2 stars", "3 stars", "4 stars", "5 stars"), -1) { _, which ->
-                selectedScore = which + 1
+        showRatingPanel(RATING, onCancel = {
+            apiCall("Saving your feedback…", { api.submitRating("2") }) {}
+        }) { score, comment ->
+            apiCall("Saving your feedback…", { api.submitRating("1", score, comment) }) {
+                if (score in 1..3) {
+                    showPanel(RATING_FEEDBACK, onCancel = {}) { dialog, panel ->
+                        panel.findViewById<TextView>(CreditR.id.rating_followup_message).text = lowScoreTips
+                        bindPanelActions(panel) { _, _ -> dialog.dismiss() }
+                    }
+                } else {
+                    openStoreRating()
+                }
             }
-            .setView(feedbackText)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Confirm", null)
-            .create()
-        fun send(action: String, score: Int?, text: String, after: () -> Unit = {}) {
-            if (callbackSent) return
-            callbackSent = true
-            apiCall("Saving your feedback…", { api.submitRating(action, score, text) }) { after() }
         }
+    }
+
+    private val popupPages = mapOf(
+        WITHDRAW_SUCCESS to WITHDRAW, WITHDRAW_EXIT to WITHDRAW, LUCKY to HOME,
+        PERMISSION_PROMPT to WITHDRAW, RATING to WITHDRAW, RATING_CHANGED to WITHDRAW,
+        RATING_FEEDBACK to WITHDRAW, REVIEW_EXIT to REVIEW_COUNTDOWN,
+        LOGOUT to PROFILE, ORDER_SUCCESS to ORDER_DETAIL, EXTENSION_CONFIRM to REPAYMENT,
+        ATTACHMENT_DELETE to FEEDBACK_FORM, ATTACHMENT_SOURCE to FEEDBACK_FORM,
+        SELECT_ORDER to FEEDBACK_FORM, FEEDBACK_SUCCESS to FEEDBACK_FORM,
+        FACE_FAILED to FACE_GUIDE, BIRTHDAY to IDENTITY_CARD, EDUCATION to IDENTITY_CARD
+    )
+
+    private fun showPanel(
+        page: Screen,
+        onCancel: () -> Unit,
+        configure: (Dialog, ViewGroup) -> Unit
+    ) {
+        if (isFinishing || isDestroyed) return
+        screenDialog?.dismiss()
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val scroll = ScrollView(this)
+        val panel = layoutInflater.inflate(pages.getValue(page), scroll, false) as ViewGroup
+        val constraints = ScreenConstraints(panel)
+        constraints.updateWidth(viewport.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels)
+        scroll.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ -> constraints.updateWidth(view.width) }
+        scroll.addView(panel)
+        dialog.setContentView(scroll)
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.setOnCancelListener { onCancel() }
+        dialog.setOnDismissListener { if (screenDialog === dialog) screenDialog = null }
+        configure(dialog, panel)
         dialog.setOnShowListener {
-            dialog.applyPopupButtonStyle()
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                if (selectedScore == 0) {
-                    notice("Please select a rating from 1 to 5.")
-                    return@setOnClickListener
+            panel.requestFocus()
+            panel.expandActionHitAreas()
+        }
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setDimAmount(0.4f)
+            setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
+            setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+        }
+        screenDialog = dialog
+        dialog.show()
+    }
+
+    private fun bindPanelActions(panel: ViewGroup, action: (String, View) -> Unit) {
+        val actions = setOf("Back", "Cancel", "Confirm", "Submit", "Apply Now", "Set Up",
+            "Reshoot", "Local photo album", "Photograph")
+        for (index in 0 until panel.childCount) {
+            val child = panel.getChildAt(index)
+            val label = child.tag as? String ?: continue
+            if (label in actions || label.startsWith("Order ")) child.setOnClickListener { action(label, child) }
+        }
+    }
+
+    private fun showRatingPanel(page: Screen, onCancel: () -> Unit, onSubmit: (Int, String) -> Unit) {
+        showPanel(page, onCancel) { dialog, panel ->
+            val slider = panel.findViewById<SeekBar>(CreditR.id.rating_slider)
+            val marker = panel.findViewById<View>(CreditR.id.rating_marker)
+            val value = panel.findViewById<TextView>(CreditR.id.rating_value)
+            val comment = panel.findViewById<EditText>(CreditR.id.rating_comment)
+            val track = panel.findViewById<View>(CreditR.id.rating_track)
+            val filledTrack = panel.findViewById<View>(CreditR.id.rating_progress)
+            val ticks = (0 until panel.childCount).map(panel::getChildAt).filter { it.tag == "rating_tick" }
+            if (layoutPreview && page == RATING_CHANGED) comment.setText(comment.hint)
+            val initial = if (page == RATING_CHANGED) 2 else 4
+            // The first mark is the start of the track; the next five are scores 1–5.
+            val stops = floatArrayOf(56f, 110f, 165f, 219f, 267f)
+            value.gravity = Gravity.CENTER
+            slider.progress = initial
+            fun updateScore(progress: Int) {
+                value.text = (progress + 1).toString()
+                if (track.width == 0 || filledTrack.width == 0) return
+                fun offsetFor(index: Int) = track.width * stops[index] / 268f
+                val startPadding = (track.left + offsetFor(0)).roundToInt() - slider.left
+                val endPadding = slider.right - (track.left + offsetFor(stops.lastIndex)).roundToInt()
+                if (slider.paddingLeft != startPadding || slider.paddingRight != endPadding) {
+                    slider.setPadding(startPadding, slider.paddingTop, endPadding, slider.paddingBottom)
                 }
-                val score = selectedScore
-                val comment = feedbackText.text?.toString().orEmpty()
-                dialog.dismiss()
-                send("1", score, comment) {
-                    if (score >= 4) openStoreRating()
-                    else AlertDialog.Builder(this)
-                        .setMessage(lowScoreTips)
-                        .setPositiveButton("Confirm", null)
-                        .setNegativeButton("Cancel", null)
-                        .create()
-                        .showWithPopupButtonStyle()
+                val offset = offsetFor(progress)
+                val center = track.left + offset
+                marker.translationX = center - (marker.left + marker.width / 2f)
+                value.translationX = center - (value.left + value.width / 2f)
+                filledTrack.pivotX = 0f
+                filledTrack.scaleX = offset / filledTrack.width
+                for (tick in ticks) {
+                    tick.setBackgroundResource(if (tick.left <= center) CoreR.drawable.surface_52651a7fb136
+                        else CoreR.drawable.surface_b2e27b9c020a)
                 }
             }
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
-                dialog.dismiss()
-                send("2", null, "")
+            slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) = updateScore(progress)
+                override fun onStartTrackingTouch(bar: SeekBar) = Unit
+                override fun onStopTrackingTouch(bar: SeekBar) = Unit
+            })
+            slider.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateScore(slider.progress) }
+            panel.post { updateScore(slider.progress) }
+            bindPanelActions(panel) { label, _ ->
+                when (label) {
+                    "Cancel" -> dialog.cancel()
+                    "Submit" -> {
+                        val score = slider.progress + 1
+                        val text = comment.text.toString()
+                        dialog.dismiss()
+                        onSubmit(score, text)
+                    }
+                }
             }
         }
-        dialog.setOnCancelListener { send("2", null, "") }
-        dialog.show()
     }
 
     private fun openStoreRating() {
@@ -1714,6 +2599,10 @@ class MainActivity : Activity() {
     @Deprecated("Platform callback for API 25 and above")
     override fun onBackPressed() {
         when (screen) {
+            KYC_EXIT -> {
+                val dialog = kycExitDialog
+                if (dialog != null) dialog.cancel() else if (!model.back()) finish()
+            }
             WITHDRAW, WITHDRAW_ADJUSTED -> {
                 val origin = model.state.getString("applicationEntryPage").orEmpty()
                 model.state.putString(
@@ -1724,22 +2613,79 @@ class MainActivity : Activity() {
             }
             FACE_GUIDE, FACE_PREVIEW, FACE_FAILED -> {
                 trackServiceEvent("CLICK_BUTTON", mapOf(ApiField.EVENT_PARAMETER to "BACK_OCR"))
-                go(KYC_EXIT)
+                returnToAuthenticationPage()
             }
-            WALLET_SETUP -> leave()
-            CONTACTS, PERSONAL_INFO, IDENTITY_CARD, VOTER_CARD, DRIVER_LICENSE -> go(KYC_EXIT)
+            IDENTITY_CARD, VOTER_CARD, DRIVER_LICENSE, IDENTITY_FILLED,
+            WALLET_SETUP, CONTACTS, PERSONAL_INFO -> returnToPreviousAuthenticationStep(screen)
+            DOCUMENT_GUIDE -> returnToKycInfoFromDocumentCapture()
             REVIEW_COUNTDOWN -> go(REVIEW_EXIT)
+            ORDER_DETAIL -> {
+                if (model.state.getBoolean(PRODUCT_APPLICATION_FLOW, false)) clearLoanProductContext()
+                leave()
+            }
             else -> leave()
         }
+    }
+
+    private fun returnToAuthenticationPage() {
+        clearSelfieCapture()
+        model.state.remove("livenessImage")
+        returnToAuthenticationAfterLiveness = true
+        model.root(authenticationCardScreen())
+    }
+
+    private fun returnToPreviousAuthenticationStep(current: Screen) {
+        val previous = when (current) {
+            CONTACTS -> WALLET_SETUP
+            PERSONAL_INFO -> CONTACTS
+            IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD -> PERSONAL_INFO
+            IDENTITY_FILLED -> authenticationCardScreen()
+            else -> null
+        }
+        if (current in setOf(FACE_GUIDE, FACE_PREVIEW, FACE_FAILED)) {
+            clearSelfieCapture()
+            model.state.remove("livenessImage")
+            returnToAuthenticationAfterLiveness = true
+            model.root(authenticationCardScreen())
+        } else {
+            model.root(previous ?: model.home)
+        }
+    }
+
+    private fun authenticationCardScreen(): Screen = runCatching {
+        Screen.valueOf(model.state.getString("authenticationCardScreen").orEmpty())
+    }.getOrDefault(IDENTITY_CARD).takeIf {
+        it in setOf(IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD)
+    } ?: IDENTITY_CARD
+
+    private fun returnToKycInfoFromDocumentCapture() {
+        val kycScreens = setOf(IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD, IDENTITY_FILLED)
+        val destination = pendingDocumentScreen?.takeIf { it in kycScreens }
+            ?: model.previousPage(setOf(DOCUMENT_GUIDE))?.takeIf { it in kycScreens }
+            ?: IDENTITY_CARD
+        pendingDocumentScreen = null
+        clearPendingDocumentCapture()
+        go(destination, replace = true)
     }
 
     private companion object {
         const val PERMISSION_REQUEST = 870
         const val CAMERA_PERMISSION_REQUEST = 871
-        const val HOME_SKELETON_TAG = "home-skeleton"
+        const val ORDERS_LIST_TAG = "orders-list-container"
+        const val ORDERS_PAGE_SIZE = 20
+        const val HOME_USER_STATUS = "home.userStatus"
+        const val LOAN_PRODUCT_JSON = "application.loanProduct"
+        const val PRODUCT_APPLICATION_FLOW = "application.productFlow"
+        const val PRODUCT_ORDER_CREATED = "application.orderCreated"
+        const val ORDER_PRODUCT_LOGO_TAG = "order-product-logo"
     }
 
-    private fun applyForCredit() {
+    private fun applyForCredit(clickedProductId: String? = null) {
+        val productId = clickedProductId ?: model.state.getString("selectedProductId").orEmpty()
+        if (productId.isBlank()) {
+            notice("No loan product is available right now.")
+            return
+        }
         val amountPage = when (screen) {
             HOME, HOME_ACTIVE, HOME_PRODUCTS, HOME_APPLIED -> "HOME"
             ORDER_DETAIL -> "ORDERDETAIL_ORDER_PAGE"
@@ -1748,64 +2694,102 @@ class MainActivity : Activity() {
         }
         trackServiceEvent("CLICK_AMOUNT_BUTTON", mapOf(
             ApiField.EVENT_PARAMETER to amountPage,
-            ApiField.EVENT_PARAMETER_2 to model.state.getString("selectedProductId").orEmpty()
+            ApiField.EVENT_PARAMETER_2 to productId
         ))
         model.state.putString("applicationEntryPage", amountPage)
+        model.state.putString("selectedProductId", productId)
+        clearLoanProductContext()
         if (!model.signedIn) {
             go(SIGN_IN)
             return
         }
         requestAppPermissions(PermissionPurpose.APPLY) {
-            apiCall("Loading your application…", {
-                val info = fetchUserInfo(recommended = false)
-                val product = info.optJSONObject(ApiField.LOAN_PRODUCT)?.optString(ApiField.PRODUCT_ID).orEmpty()
-                    .ifBlank { model.state.getString("selectedProductId").orEmpty() }
-                val productId = if (product.isBlank()) {
-                    api.products().optJSONArray(ApiField.PRODUCT_LIST)?.optJSONObject(0)?.optString(ApiField.PRODUCT_ID).orEmpty()
-                } else product
-                val status = info.optInt(ApiField.USER_STATUS)
-                val destination = if (status == 1) {
-                    productId to prepareAuthentication()
-                } else if (productId.isNotBlank()) {
-                    val space = api.spaceInfo(productId, deviceRequestFacts())
-                    when (space.optInt(ApiField.SPACE_STATUS)) {
-                        1 -> productId to prepareAuthentication()
-                        2 -> {
-                            val spaceProductId = space.optJSONObject(ApiField.LOAN_PRODUCT)
-                                ?.optString(ApiField.PRODUCT_ID).orEmpty().ifBlank { productId }
-                            spaceProductId to WITHDRAW
-                        }
-                        3 -> {
-                            val orderInfo = space.optJSONObject(ApiField.ORDER_INFO)
-                            val orderNumber = orderInfo?.optString(ApiField.ORDER_NO).orEmpty().ifBlank {
-                                api.orderList(1, 20).optJSONArray(ApiField.ORDER_LIST)
-                                    ?.optJSONObject(0)?.optString(ApiField.ORDER_NO).orEmpty()
-                            }
-                            if (orderNumber.isNotBlank()) {
-                                model.state.putBoolean("hasOrder", true)
-                                model.state.putString("activeOrderNo", orderNumber)
-                                val detail = api.orderDetail(orderNumber, deviceRequestFacts())
-                                productId to (detail.optJSONObject(ApiField.ORDER_INFO)?.let(::orderDestination) ?: ORDER_DETAIL)
-                            } else productId to ORDERS
-                        }
-                        else -> productId to credit.applicationDestination(true, model.hasOrder)
-                    }
-                } else productId to credit.applicationDestination(true, model.hasOrder)
-                if (productId.isNotBlank() && destination.second == WITHDRAW) {
-                    prepareAuthentication()
-                    requireAmountRange()
+            if (homeDataLoading) {
+                pendingApplicationProductId = productId
+                return@requestAppPermissions
+            }
+            val userStatus = model.state.getInt(HOME_USER_STATUS, -1)
+            if (userStatus !in 1..2) {
+                pendingApplicationProductId = productId
+                refreshSignedInHome()
+                return@requestAppPermissions
+            }
+            openApplicationForProduct(productId, userStatus)
+        }
+    }
+
+    private fun openApplicationForProduct(productId: String, userStatus: Int) {
+        model.state.putString("selectedProductId", productId)
+        if (userStatus == 1) {
+            apiCall("Loading your application…", { prepareAuthentication() }) { destination ->
+                go(destination)
+            }
+            return
+        }
+
+        apiCall("Loading your application…", {
+            val space = api.spaceInfo(productId, deviceRequestFacts())
+            when (space.optInt(ApiField.SPACE_STATUS)) {
+                1 -> HomeApplicationRoute(productId, prepareAuthentication())
+                2 -> {
+                    val loanProduct = space.optJSONObject(ApiField.LOAN_PRODUCT)
+                    val responseProductId = loanProduct?.optString(ApiField.PRODUCT_ID).orEmpty().trim()
+                    HomeApplicationRoute(responseProductId, ORDER_DETAIL, loanProduct, productOffer = true)
                 }
-                destination
-            }) { (productId, destination) ->
-                if (productId.isNotBlank()) model.state.putString("selectedProductId", productId)
-                if (productId.isBlank() && destination !in setOf(WALLET_SETUP, ORDERS) && !model.hasOrder) {
+                3 -> {
+                    val orderInfo = space.optJSONObject(ApiField.ORDER_INFO)
+                    val orderNumber = orderInfo?.optString(ApiField.ORDER_NO).orEmpty().ifBlank {
+                        api.orderList(1, 20).optJSONArray(ApiField.ORDER_LIST)
+                            ?.optJSONObject(0)?.optString(ApiField.ORDER_NO).orEmpty()
+                    }
+                    if (orderNumber.isBlank()) {
+                        HomeApplicationRoute(productId, ORDERS)
+                    } else {
+                        model.state.putBoolean("hasOrder", true)
+                        model.state.putString("activeOrderNo", orderNumber)
+                        val detail = api.orderDetail(orderNumber, deviceRequestFacts())
+                        val destination = detail.optJSONObject(ApiField.ORDER_INFO)
+                            ?.let(::orderDestination)
+                            ?.takeIf { it != ORDER_DETAIL }
+                            ?: ORDERS
+                        HomeApplicationRoute(productId, destination)
+                    }
+                }
+                else -> throw ApiException("Unable to load an available product for this account.")
+            }
+        }) { route ->
+            if (route.productOffer) {
+                val product = route.loanProduct
+                if (product == null || route.productId.isBlank()) {
+                    clearLoanProductContext()
+                    model.root(model.home)
                     notice("No loan product is available right now.")
-                } else if (destination == ORDERS) {
-                    model.root(ORDERS)
-                    loadOrders()
-                } else go(destination)
+                    return@apiCall
+                }
+                saveLoanProductContext(product)
+                model.state.putString("selectedProductId", route.productId)
+                go(ORDER_DETAIL)
+            } else if (route.screen == ORDERS) {
+                model.state.putString("selectedProductId", route.productId)
+                model.root(ORDERS)
+                loadOrders()
+            } else {
+                model.state.putString("selectedProductId", route.productId)
+                go(route.screen)
             }
         }
+    }
+
+    private fun saveLoanProductContext(product: org.json.JSONObject) {
+        model.state.putString(LOAN_PRODUCT_JSON, product.toString())
+        model.state.putBoolean(PRODUCT_APPLICATION_FLOW, true)
+        model.state.putBoolean(PRODUCT_ORDER_CREATED, false)
+    }
+
+    private fun clearLoanProductContext() {
+        model.state.remove(LOAN_PRODUCT_JSON)
+        model.state.putBoolean(PRODUCT_APPLICATION_FLOW, false)
+        model.state.putBoolean(PRODUCT_ORDER_CREATED, false)
     }
 
     private fun submitApplication() {
@@ -1817,6 +2801,18 @@ class MainActivity : Activity() {
         val productId = model.state.getString("selectedProductId").orEmpty()
         if (productId.isBlank()) {
             notice("Select an available product before applying.")
+            return
+        }
+        if (model.state.getBoolean(PRODUCT_APPLICATION_FLOW, false)) {
+            if (model.state.getBoolean(PRODUCT_ORDER_CREATED, false)) {
+                notice("Your application has already been submitted.")
+                return
+            }
+            apiCall("Submitting your application…", {
+                api.createOrder(productId, api.compressedDevicePayload(), deviceRequestFacts())
+            }) { response ->
+                finishOrderCreation(response)
+            }
             return
         }
         apiCall("Your application is being submitted. Please do not leave this screen.", {
@@ -1836,16 +2832,24 @@ class MainActivity : Activity() {
                 go(result.third ?: WALLET_SETUP)
             } else if (result.first == 2) {
                 notice("Complete face verification before submitting your application.")
+                returnToAuthenticationAfterLiveness = false
                 go(FACE_GUIDE)
             } else if (response != null) {
-                AdjustAnalytics.loanApplicationResponse(this, response.optInt(ApiField.FIRST_APPLICATION) == 1)
-                model.state.putBoolean("hasOrder", true)
-                response.optString(ApiField.ORDER_NO).takeIf(String::isNotBlank)?.let {
-                    model.state.putString("activeOrderNo", it)
-                }
-                go(ORDER_SUCCESS)
+                finishOrderCreation(response)
             }
         }
+    }
+
+    private fun finishOrderCreation(response: org.json.JSONObject) {
+        AdjustAnalytics.loanApplicationResponse(this, response.optInt(ApiField.FIRST_APPLICATION) == 1)
+        model.state.putBoolean("hasOrder", true)
+        val orderNumber = response.optString(ApiField.ORDER_NO).takeIf(String::isNotBlank)
+        if (orderNumber == null) model.state.remove("activeOrderNo")
+        else model.state.putString("activeOrderNo", orderNumber)
+        if (model.state.getBoolean(PRODUCT_APPLICATION_FLOW, false)) {
+            model.state.putBoolean(PRODUCT_ORDER_CREATED, true)
+        }
+        go(ORDER_SUCCESS)
     }
 
     private suspend fun createOrderAndReadNumber(productId: String): org.json.JSONObject {
@@ -1901,45 +2905,95 @@ class MainActivity : Activity() {
         model.state.remove("filterOrderStatus")
         filter.requestStatus?.let { model.state.putInt("filterOrderStatus", it) }
         configureOrderTabs(filter)
-        if (screen == ORDERS) renderOrderCards(filter)
         if (model.signedIn) loadOrders(filter)
     }
 
-    private fun loadOrders(filter: OrderStatusFilter = OrderStatusFilter.ALL) {
-        val showSkeleton = screen == ORDERS && !ordersInitialLoadComplete && orderRecords.isEmpty()
-        if (showSkeleton) {
-            ordersLoading = true
-            renderOrderCards(filter)
-        }
-        apiCall(
-            "Loading orders…",
-            { api.orderList(1, 20, filter.requestStatus) },
-            onFailure = {
-                if (showSkeleton) {
-                    ordersLoading = false
-                    if (screen == ORDERS) renderOrderCards(filter)
-                }
-            },
-            showLoadingDialog = screen !in setOf(ORDERS, ORDERS_EMPTY)
-        ) { response ->
-            val orders = response.optJSONArray(ApiField.ORDER_LIST)
-            orderRecords = (0 until (orders?.length() ?: 0)).mapNotNull { orders?.optJSONObject(it) }
-            if (filter == OrderStatusFilter.ALL) ordersInitialLoadComplete = true
-            ordersLoading = false
-            if (filter == OrderStatusFilter.ALL) {
-                model.state.putBoolean("hasOrder", orderRecords.isNotEmpty())
-                orderRecords.firstOrNull()?.optString(ApiField.ORDER_NO)?.takeIf(String::isNotBlank)?.let {
-                    model.state.putString("activeOrderNo", it)
-                }
-                if (orderRecords.isEmpty() && screen == ORDERS) model.root(ORDERS_EMPTY)
-                if (orderRecords.isNotEmpty() && screen == ORDERS_EMPTY) model.root(ORDERS)
-            } else if (orderRecords.isNotEmpty()) {
-                model.state.putBoolean("hasOrder", true)
-                if (screen == ORDERS_EMPTY) model.root(ORDERS)
-            }
+    private fun loadOrders(
+        filter: OrderStatusFilter = OrderStatusFilter.ALL,
+        page: Int = 1,
+        append: Boolean = false
+    ) {
+        if (append && (ordersLoading || !ordersHasMore || filter != activeOrdersFilter)) return
+        if (!append) {
+            activeOrdersFilter = filter
+            ordersPage = 0
+            ordersHasMore = true
+            orderRecords = emptyList()
+            viewport.scrollTo(0, 0)
             if (screen == ORDERS) renderOrderCards(filter)
-            if (filter != OrderStatusFilter.ALL && orderRecords.isEmpty()) notice("No orders in this status.")
+        } else if (page != ordersPage + 1) {
+            return
         }
+
+        ordersLoading = true
+        val requestId = ++ordersRequestId
+        showLoading("Loading orders…")
+        activityScope.launch {
+            try {
+                val response = api.orderList(page, ORDERS_PAGE_SIZE, filter.requestStatus)
+                if (requestId != ordersRequestId) return@launch
+
+                val pageArray = response.optJSONArray(ApiField.ORDER_LIST)
+                val pageRecords = (0 until (pageArray?.length() ?: 0))
+                    .mapNotNull { pageArray?.optJSONObject(it) }
+                    .filter { filter.requestStatus == null || it.optInt(ApiField.LOAN_STATUS) == filter.requestStatus }
+                orderRecords = if (append) mergeOrderPages(orderRecords, pageRecords) else pageRecords
+                ordersPage = page
+                ordersHasMore = (pageArray?.length() ?: 0) >= ORDERS_PAGE_SIZE
+
+                if (filter == OrderStatusFilter.ALL && page == 1) {
+                    model.state.putBoolean("hasOrder", orderRecords.isNotEmpty())
+                    orderRecords.firstOrNull()?.optString(ApiField.ORDER_NO)?.takeIf(String::isNotBlank)?.let {
+                        model.state.putString("activeOrderNo", it)
+                    }
+                    if (orderRecords.isEmpty() && screen == ORDERS) model.root(ORDERS_EMPTY)
+                    if (orderRecords.isNotEmpty() && screen == ORDERS_EMPTY) model.root(ORDERS)
+                } else if (orderRecords.isNotEmpty()) {
+                    model.state.putBoolean("hasOrder", true)
+                    if (screen == ORDERS_EMPTY) model.root(ORDERS)
+                }
+
+                if (screen == ORDERS) renderOrderCards(filter)
+                if (!append && filter != OrderStatusFilter.ALL && orderRecords.isEmpty()) {
+                    notice("No orders in this status.")
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                if (requestId != ordersRequestId) return@launch
+                if (failure is ExpiredSessionException) {
+                    model.state.putBoolean("signedIn", false)
+                    model.root(SIGN_IN)
+                    notice("Login expired. Please sign in again.")
+                } else {
+                    notice(failure.message ?: "Unable to connect. Please try again.")
+                }
+            } finally {
+                if (requestId == ordersRequestId) {
+                    ordersLoading = false
+                    hideLoading()
+                    if (screen == ORDERS) renderOrderCards(activeOrdersFilter)
+                }
+            }
+        }
+    }
+
+    private fun mergeOrderPages(
+        current: List<org.json.JSONObject>,
+        next: List<org.json.JSONObject>
+    ): List<org.json.JSONObject> {
+        val seenOrderNumbers = current.mapNotNull { it.optString(ApiField.ORDER_NO).takeIf(String::isNotBlank) }
+            .toMutableSet()
+        return current + next.filter { order ->
+            val orderNumber = order.optString(ApiField.ORDER_NO)
+            orderNumber.isBlank() || seenOrderNumbers.add(orderNumber)
+        }
+    }
+
+    private fun loadMoreOrdersIfNeeded(scrollY: Int) {
+        if (screen != ORDERS || ordersLoading || !ordersHasMore || ordersPage == 0) return
+        val remaining = stage.height - viewport.height - scrollY
+        if (remaining <= orderDp(180f)) loadOrders(activeOrdersFilter, ordersPage + 1, append = true)
     }
 
     private fun loadFeedbacks() {
@@ -1984,105 +3038,132 @@ class MainActivity : Activity() {
         else -> ORDER_DETAIL
     }
 
-    private fun captureOrderCardSlots() {
-        orderCardSlots.clear()
+    private fun renderOrderCards(filter: OrderStatusFilter) {
+        val container = orderListContainer ?: return
+        container.removeAllViews()
+        orderRecords.forEach { container.addView(createOrderCard(it)) }
+        val contentHeight = if (orderRecords.isEmpty()) {
+            104f
+        } else {
+            302f + (orderRecords.size - 1) * 200f
+        }
+        pageConstraints.setContentHeight(contentHeight)
+        container.requestLayout()
+    }
+
+    private fun hideStaticOrderCardViews() {
         for (index in 0 until stage.childCount) {
             val child = stage.getChildAt(index)
             val top = dpTop(child)
-            if (top < 105 || top >= 1500) continue
-            val row = (top.toInt() - 105) / 200
-            if (row in 0 until 7) orderCardSlots[child] = OrderCardSlot(row, pageConstraints.top(child))
+            if (top >= 105f && top < 1500f) child.visibility = View.GONE
         }
     }
 
-    private fun renderOrderCards(filter: OrderStatusFilter) {
-        if (ordersLoading) {
-            for (view in orderCardSlots.keys) view.visibility = View.GONE
-            if (orderSkeletonViews.isEmpty()) addOrderSkeletons()
-            pageConstraints.setContentHeight(705f)
-            viewport.scrollTo(0, 0)
-            return
+    private fun createOrderListContainer() {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            clipToPadding = false
+            tag = ORDERS_LIST_TAG
         }
-        clearOrderSkeletonViews()
-
-        val visibleRows = orderRecords.take(7).indices.filter { index ->
-            filter.requestStatus == null || orderRecords[index].optInt(ApiField.LOAN_STATUS) == filter.requestStatus
+        val params = ConstraintLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            leftToLeft = ConstraintLayout.LayoutParams.PARENT_ID
+            rightToRight = ConstraintLayout.LayoutParams.PARENT_ID
+            topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            leftMargin = orderDp(20f)
+            rightMargin = orderDp(20f)
+            topMargin = orderDp(105f)
         }
-        val visiblePosition = visibleRows.withIndex().associate { it.value to it.index }
-
-        for ((view, slot) in orderCardSlots) {
-            val position = visiblePosition[slot.index]
-            if (position == null) {
-                view.visibility = View.GONE
-                continue
-            }
-            view.visibility = View.VISIBLE
-            pageConstraints.moveTo(view, slot.originalTop + (position - slot.index) * 200f)
-            if (view !is TextView) continue
-            val order = orderRecords[slot.index]
-            val left = pageConstraints.left(view).roundToInt()
-            val relativeTop = slot.originalTop.roundToInt() - (105 + slot.index * 200)
-            when {
-                relativeTop == 17 && left < 100 -> view.text = order.optString(ApiField.PRODUCT_NAME)
-                relativeTop == 17 && left >= 200 -> view.text = orderStatusLabel(order)
-                relativeTop == 52 && left >= 90 -> view.text = order.optString(ApiField.LOAN_AMOUNT)
-                relativeTop == 121 && left >= 250 -> view.text = order.optString(ApiField.ORDER_APPLY_DATE)
-                relativeTop == 149 && left >= 150 -> view.text = order.optString(ApiField.ORDER_NO)
-            }
-        }
-
-        val contentHeightDp = if (filter.requestStatus == null) {
-            fullOrdersHeight
-        } else {
-            maxOf(96f, 302f + (visibleRows.size - 1).coerceAtLeast(0) * 200f)
-        }
-        pageConstraints.setContentHeight(contentHeightDp)
-        viewport.scrollTo(0, 0)
+        stage.addView(container, params)
+        orderListContainer = container
     }
 
-    private fun addOrderSkeletons() {
-        val cardColor = Color.rgb(247, 248, 250)
-        val blockColor = Color.rgb(231, 234, 238)
-        repeat(3) { index ->
-            val top = 105f + index * 200f
-            addOrderSkeletonBlock(20f, top, 335f, 180f, 10f, cardColor)
-            addOrderSkeletonBlock(39f, top + 17f, 104f, 16f, 5f, blockColor)
-            addOrderSkeletonBlock(257f, top + 18f, 67f, 14f, 7f, blockColor)
-            addOrderSkeletonBlock(39f, top + 52f, 40f, 40f, 20f, blockColor)
-            addOrderSkeletonBlock(99f, top + 52f, 139f, 23f, 6f, blockColor)
-            addOrderSkeletonBlock(99f, top + 76f, 87f, 14f, 5f, blockColor)
-            addOrderSkeletonBlock(30f, top + 106f, 315f, 1f, 0f, Color.rgb(232, 234, 237))
-            addOrderSkeletonBlock(36f, top + 121f, 71f, 14f, 5f, blockColor)
-            addOrderSkeletonBlock(268f, top + 121f, 74f, 14f, 5f, blockColor)
-            addOrderSkeletonBlock(36f, top + 149f, 91f, 14f, 5f, blockColor)
-            addOrderSkeletonBlock(163f, top + 149f, 179f, 14f, 5f, blockColor)
+    private fun createOrderCard(order: org.json.JSONObject): View {
+        val card = FrameLayout(this).apply {
+            setBackgroundResource(CoreR.drawable.art_d0b7bd49ac17)
+            contentDescription = listOf(
+                order.optString(ApiField.PRODUCT_NAME),
+                orderStatusLabel(order),
+                formatProductAmount(order.optString(ApiField.LOAN_AMOUNT))
+            ).filter(String::isNotBlank).joinToString(", ")
+            isClickable = true
+            isFocusable = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         }
+        val name = order.optString(ApiField.PRODUCT_NAME).ifBlank { getString(CoreR.string.text_name) }
+        val status = orderStatusLabel(order)
+        val amount = formatProductAmount(order.optString(ApiField.LOAN_AMOUNT))
+        addOrderCardText(card, name, 16f, 0xff120d01.toInt(), 19f, 17f, 160f, 20f, Gravity.START or Gravity.CENTER_VERTICAL)
+        addOrderCardText(card, status, 14f, orderStatusColor(order), 194f, 17f, 123f, 18f, Gravity.END or Gravity.CENTER_VERTICAL)
+        addOrderCardText(card, amount, 18f, 0xff120d01.toInt(), 78f, 52f, 180f, 23f, Gravity.START or Gravity.CENTER_VERTICAL)
+        addOrderCardText(card, getString(CoreR.string.text_loan_amount), 14f, 0xff120d01.toInt(), 79f, 76f, 139f, 18f, Gravity.START or Gravity.CENTER_VERTICAL)
+        val divider = ImageView(this).apply {
+            setImageResource(CoreR.drawable.art_4337934efed9)
+            scaleType = ImageView.ScaleType.FIT_XY
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        card.addView(divider, FrameLayout.LayoutParams(orderDp(315f), orderDp(1f)).apply {
+            leftMargin = orderDp(10f)
+            topMargin = orderDp(106f)
+        })
+        addOrderCardText(card, getString(CoreR.string.text_apply_date), 14f, 0xff999999.toInt(), 16f, 121f, 100f, 18f, Gravity.START or Gravity.CENTER_VERTICAL)
+        addOrderCardText(card, order.optString(ApiField.ORDER_APPLY_DATE), 14f, 0xff120d01.toInt(), 151f, 121f, 168f, 18f, Gravity.END or Gravity.CENTER_VERTICAL)
+        addOrderCardText(card, getString(CoreR.string.text_order_number), 14f, 0xff999999.toInt(), 16f, 149f, 110f, 18f, Gravity.START or Gravity.CENTER_VERTICAL)
+        addOrderCardText(card, order.optString(ApiField.ORDER_NO), 14f, 0xff120d01.toInt(), 123f, 149f, 199f, 18f, Gravity.END or Gravity.CENTER_VERTICAL)
+        card.setOnClickListener {
+            val orderNumber = order.optString(ApiField.ORDER_NO)
+            if (orderNumber.isBlank()) notice("This order is no longer available.") else loadOrderDetail(orderNumber)
+        }
+        val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, orderDp(180f)).apply {
+            bottomMargin = orderDp(20f)
+        }
+        card.layoutParams = params
+        return card
     }
 
-    private fun addOrderSkeletonBlock(
+    private fun addOrderCardText(
+        card: FrameLayout,
+        value: String,
+        size: Float,
+        color: Int,
         left: Float,
         top: Float,
         width: Float,
         height: Float,
-        radius: Float,
-        color: Int
+        gravity: Int
     ) {
-        val block = View(this).apply {
-            background = GradientDrawable().apply {
-                cornerRadius = dp(radius).toFloat()
-                setColor(color)
-            }
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        val text = TextView(this).apply {
+            text = value
+            textSize = size * orderDesignScale()
+            setTextColor(color)
+            typeface = Typeface.create(if (size >= 16f) "sans-serif-medium" else "sans-serif", Typeface.NORMAL)
+            includeFontPadding = false
+            this.gravity = gravity
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        pageConstraints.add(block, left, top, width, height)
-        orderSkeletonViews += block
+        card.addView(text, FrameLayout.LayoutParams(orderDp(width), orderDp(height)).apply {
+            leftMargin = orderDp(left)
+            topMargin = orderDp(top)
+        })
     }
 
-    private fun clearOrderSkeletonViews() {
-        orderSkeletonViews.forEach { view ->
-            (view.parent as? android.view.ViewGroup)?.removeView(view)
-        }
-        orderSkeletonViews.clear()
+    private fun orderDesignScale(): Float {
+        val referenceWidth = (stage.tag as? String)?.substringBefore(',')?.toFloatOrNull() ?: 375f
+        val widthPx = viewport.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        return (widthPx / (resources.displayMetrics.density * referenceWidth)).coerceAtLeast(0.5f)
+    }
+
+    private fun orderDp(value: Float) = dp(value * orderDesignScale())
+
+    private fun orderStatusColor(order: org.json.JSONObject): Int = when (order.optInt(ApiField.LOAN_STATUS)) {
+        1 -> 0xffff8222.toInt()
+        2 -> 0xffc48a00.toInt()
+        3 -> 0xffd39a00.toInt()
+        4 -> 0xff49815b.toInt()
+        5 -> 0xffd95d4f.toInt()
+        6 -> 0xffd44738.toInt()
+        else -> 0xff999999.toInt()
     }
 
     private fun orderStatusLabel(order: org.json.JSONObject): String = when (order.optInt(ApiField.LOAN_STATUS)) {
@@ -2101,7 +3182,7 @@ class MainActivity : Activity() {
                 listOf(phoneIndex, nameIndex)
             }.mapNotNull { stage.getChildAt(it) as? EditText }
         } else fields
-        val missing = fieldsToValidate.firstOrNull { it.text.isNullOrBlank() }
+        val missing = fieldsToValidate.firstOrNull { field -> field.text.isNullOrBlank() }
         if (missing == null) return true
         missing.requestFocus()
         missing.error = "Please complete this field"
@@ -2119,6 +3200,74 @@ class MainActivity : Activity() {
         if (fragmentManager.findFragmentByTag("country") == null) {
             CountryDialog().show(fragmentManager, "country")
         }
+    }
+
+    private fun showKycExitDialog() {
+        if (kycExitDialog?.isShowing == true || isFinishing || isDestroyed) return
+
+        kycExitReturnScrollY = viewport.scrollY
+        val dialog = Dialog(this)
+        kycExitDialog = dialog
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val backdrop = layoutInflater.inflate(IdentityR.layout.kyc_exit, null, false) as FrameLayout
+        val card = backdrop.findViewById<View>(IdentityR.id.kyc_exit_card)
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).roundToInt()
+        fun centerKycExitCard() {
+            val maxWidth = minOf(backdrop.width - dp(40), dp(335))
+            val maxHeight = backdrop.height - dp(40)
+            if (maxWidth <= 0 || maxHeight <= 0) return
+            val widthForHeight = (maxHeight * 335f / 195f).roundToInt()
+            val width = minOf(maxWidth, widthForHeight)
+            if (width <= 0) return
+            val height = (width * 195f / 335f).roundToInt()
+            val params = card.layoutParams as FrameLayout.LayoutParams
+            if (params.width == width && params.height == height && params.gravity == Gravity.CENTER) return
+            params.width = width
+            params.height = height
+            params.gravity = Gravity.CENTER
+            params.leftMargin = 0
+            params.rightMargin = 0
+            params.marginStart = 0
+            params.marginEnd = 0
+            card.layoutParams = params
+        }
+        backdrop.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> centerKycExitCard() }
+        dialog.setContentView(backdrop)
+        dialog.setCancelable(true)
+        dialog.setCanceledOnTouchOutside(false)
+        backdrop.setOnClickListener { dialog.cancel() }
+        card.setOnClickListener { }
+        dialog.setOnCancelListener {
+            if (kycExitDialog !== dialog) return@setOnCancelListener
+            kycExitDialog = null
+            if (screen == KYC_EXIT) {
+                trackServiceEvent("CLICK_BUTTON", mapOf(ApiField.EVENT_PARAMETER to "BACK_OCR_CANCEL"))
+                if (!model.back()) model.root(IDENTITY_CARD)
+                viewport.post { viewport.scrollTo(0, kycExitReturnScrollY) }
+            }
+        }
+        dialog.setOnDismissListener {
+            if (kycExitDialog === dialog) kycExitDialog = null
+        }
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            attributes = attributes.apply {
+                gravity = Gravity.CENTER
+                dimAmount = 0.4f
+            }
+            setLayout(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT
+            )
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            navigationBarColor = Color.TRANSPARENT
+            decorView.systemUiVisibility = decorView.systemUiVisibility or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            if (Build.VERSION.SDK_INT >= 29) isNavigationBarContrastEnforced = false
+        }
+        dialog.show()
+        backdrop.post { centerKycExitCard() }
     }
 
     internal fun applyCountry(country: String) {
@@ -2143,12 +3292,20 @@ class MainActivity : Activity() {
             AdjustAnalytics.loginResponse(this, response.optInt(ApiField.REGISTERED) == 1)
             homeDataResolved = false
             homeDataLoading = false
+            homeProducts = org.json.JSONArray()
+            homeHasRealProducts = false
+            model.state.remove(HOME_USER_STATUS)
+            pendingApplicationProductId = null
+            clearLoanProductContext()
             model.login()
             viewport.post { refreshSignedInHome() }
         }
     }
 
     private fun handle(label: String, view: View, index: Int) {
+        if (screen == IDENTITY_FILLED && !model.state.getString("livenessImage").isNullOrBlank() &&
+            label in setOf("Capture selfie", "Upload a clear selfie")
+        ) return
         val modalActions = when (screen) {
             LOGOUT, ORDER_SUCCESS, WITHDRAW_SUCCESS, WITHDRAW_EXIT, REVIEW_EXIT, FEEDBACK_SUCCESS,
             ATTACHMENT_DELETE, EXTENSION_CONFIRM, KYC_EXIT, RATING_FEEDBACK -> setOf("Cancel", "Confirm")
@@ -2161,11 +3318,6 @@ class MainActivity : Activity() {
         when {
             label == "Back" -> onBackPressed()
             screen == WELCOME -> startJourney()
-            label.startsWith("Order ") && screen == ORDERS -> {
-                val order = orderCardSlots[view]?.index?.let(orderRecords::getOrNull)
-                val orderNumber = order?.optString(ApiField.ORDER_NO).orEmpty()
-                if (orderNumber.isBlank()) notice("This order is no longer available.") else loadOrderDetail(orderNumber)
-            }
             label.startsWith("Order ") && label.substringAfter("Order ").uppercase(Locale.US) in Screen.values().map { it.name } -> {
                 if (screen == SELECT_ORDER) go(FEEDBACK_FILLED) else go(Screen.valueOf(label.substringAfter("Order ").uppercase(Locale.US)))
             }
@@ -2221,9 +3373,13 @@ class MainActivity : Activity() {
                 feedback.clear()
                 api.clearSession()
                 homeProducts = org.json.JSONArray()
+                homeHasRealProducts = false
                 homeInfoSignedIn = false
                 homeDataResolved = false
                 homeDataLoading = false
+                model.state.remove(HOME_USER_STATUS)
+                pendingApplicationProductId = null
+                clearLoanProductContext()
                 model.signOut()
                 loadHomeData()
             }
@@ -2244,26 +3400,39 @@ class MainActivity : Activity() {
             label == "Choose PDF" -> attachmentOptions(false)
             label == "Choose image" -> attachmentOptions(true)
             label == "Local photo album" -> pickFile("image/*")
+            label == "Capture selfie photo" -> captureFacePhoto()
+            label == "Capture document photo" -> {
+                trackDocumentCameraTap()
+                captureDocumentPhoto()
+            }
             label == "Photograph" || label.endsWith(" photo") -> {
-                if (screen == DOCUMENT_GUIDE) trackDocumentCameraTap()
-                takePhoto()
+                if (screen == DOCUMENT_GUIDE) {
+                    trackDocumentCameraTap()
+                    captureDocumentPhoto()
+                } else takePhoto()
             }
-            label == "Capture selfie" || label == "Upload a clear selfie" -> go(FACE_GUIDE)
+            label == "Capture selfie" || label == "Upload a clear selfie" -> {
+                clearSelfieCapture()
+                model.state.remove("livenessImage")
+                returnToAuthenticationAfterLiveness = true
+                go(FACE_GUIDE)
+            }
             label == "Capture document" -> { pendingDocumentScreen = screen; go(DOCUMENT_GUIDE) }
-            screen == DOCUMENT_PREVIEW -> {
-                val destination = pendingDocumentScreen ?: IDENTITY_CARD
-                pendingDocumentScreen = null
-                go(destination)
+            label == "Reshoot" -> {
+                clearSelfieCapture()
+                model.state.remove("livenessImage")
+                go(FACE_GUIDE)
             }
-            label == "Reshoot" -> { clearSelfieCapture(); go(FACE_GUIDE) }
             label == "Submit application" -> submitApplication()
-            label == "Go Apply" || label == "Begin Application" || label == "Apply Now" -> applyForCredit()
+            label == "Go Apply" || label == "Begin Application" || label == "Apply Now" ->
+                applyForCredit(homeProductActionIds[view] ?: model.state.getString("selectedProductId").orEmpty())
             label == "Withdraw Now" -> when (screen) {
                 HOME_ACTIVE -> openAmountScreen()
                 WITHDRAW, WITHDRAW_ADJUSTED -> saveSelectedAmount()
                 else -> go(WITHDRAW_SUCCESS)
             }
             label == "Set Up" && screen == PERMISSION_PROMPT -> requestAppPermissions(PermissionPurpose.INITIAL) {}
+            screen == PERSONAL_INFO && view.id == IdentityR.id.personal_info_payroll_cycle_value -> openCityPicker()
             label == "Choose" && view is TextView -> form.choose(view, index, stage)
             screen in setOf(WITHDRAW, WITHDRAW_ADJUSTED) && label.matches(Regex("[0-9]+ Days")) && view is TextView ->
                 form.select(view, index, "Loan term", listOf("7 Days", "20 Days", "365 Days"))
@@ -2318,7 +3487,6 @@ class MainActivity : Activity() {
             IDENTITY_FILLED -> go(ORDER_DETAIL)
             WALLET_EDIT -> saveWallet()
             FEEDBACK_FORM, FEEDBACK_FILLED, FEEDBACK_ATTACHMENTS -> submitFeedbackRemote()
-            RATING, RATING_CHANGED -> go(RATING_FEEDBACK)
             else -> leave()
         }
     }
@@ -2329,14 +3497,20 @@ class MainActivity : Activity() {
             notice("Please take a selfie before submitting.")
             return
         }
+        val returnToAuthentication = returnToAuthenticationAfterLiveness
         apiCall("Uploading and verifying selfie…", {
             try {
                 val imagePath = S3ImageUploader(this, api).uploadUri(selfie, true)
-                api.saveLiveness(imagePath)
-                val info = fetchUserInfo()
-                val accepted = info.optInt(ApiField.USER_LIVENESS) == 1
+                val response = try {
+                    api.saveLiveness(imagePath)
+                } catch (failure: ApiException) {
+                    if (failure.code == 0) null else throw failure
+                }
+                val accepted = response?.optInt(ApiField.RESULT) == 1
+                val continuation = if (accepted && !returnToAuthentication) {
+                    continueAfterIdentity()
+                } else null
                 trackAuthSubmission(FACE_PREVIEW, accepted)
-                val continuation = if (accepted) continueAfterIdentity(info) else AuthContinuation(info, null)
                 Triple(imagePath, accepted, continuation)
             } catch (failure: Exception) {
                 trackAuthSubmission(FACE_PREVIEW, false)
@@ -2345,22 +3519,26 @@ class MainActivity : Activity() {
         }) { (imagePath, accepted, continuation) ->
             if (accepted) {
                 model.state.putString("livenessImage", imagePath)
-                clearSelfieCapture()
-                if (continuation.order != null) {
-                    AdjustAnalytics.loanApplicationResponse(this, continuation.order.optInt(ApiField.FIRST_APPLICATION) == 1)
-                    model.state.putBoolean("hasOrder", true)
-                    model.root(model.home)
+                if (returnToAuthentication) {
+                    go(identity.next(FACE_PREVIEW), replace = true)
                 } else {
-                    val productId = continuationProductId(continuation.info)
-                    if (productId.isBlank()) model.root(model.home)
-                    else {
+                    clearSelfieCapture()
+                    val product = continuation?.loanProduct
+                    val productId = product?.optString(ApiField.PRODUCT_ID).orEmpty().trim()
+                    if (product == null || productId.isBlank()) {
+                        clearLoanProductContext()
+                        model.root(model.home)
+                        notice("No loan product is available right now.")
+                    } else {
+                        saveLoanProductContext(product)
                         model.state.putString("selectedProductId", productId)
-                        model.root(WITHDRAW)
+                        go(ORDER_DETAIL)
                     }
                 }
             } else {
                 clearSelfieCapture()
-                notice("The selfie could not be verified. Please try again.")
+                model.state.remove("livenessImage")
+                go(FACE_GUIDE)
                 go(FACE_FAILED)
             }
         }
@@ -2426,7 +3604,9 @@ class MainActivity : Activity() {
                 trackAuthSubmission(cardScreen, false)
                 throw failure
             }
-            continueAfterIdentity(fetchUserInfo())
+            continueAfterIdentity()
+        }, suppressFailureNotice = { failure ->
+            failure.message?.contains("name is out of range", ignoreCase = true) == true
         }) { continuation ->
             val info = continuation.info
             if (info.optInt(ApiField.USER_STATUS) != 2) {
@@ -2434,21 +3614,20 @@ class MainActivity : Activity() {
                 model.root(model.home)
             } else if (info.optInt(ApiField.USER_LIVENESS) != 1) {
                 model.state.putBoolean("identityVerified", true)
-                continuationProductId(info)?.takeIf(String::isNotBlank)?.let {
-                    model.state.putString("selectedProductId", it)
-                }
+                returnToAuthenticationAfterLiveness = false
                 go(FACE_GUIDE)
-            } else if (continuation.order != null) {
-                AdjustAnalytics.loanApplicationResponse(this, continuation.order.optInt(ApiField.FIRST_APPLICATION) == 1)
-                model.state.putBoolean("hasOrder", true)
-                model.root(model.home)
             } else {
                 model.state.putBoolean("identityVerified", true)
-                val productId = continuationProductId(info)
-                if (productId.isBlank()) model.root(model.home)
-                else {
+                val product = continuation.loanProduct
+                val productId = product?.optString(ApiField.PRODUCT_ID).orEmpty().trim()
+                if (product == null || productId.isBlank()) {
+                    clearLoanProductContext()
+                    model.root(model.home)
+                    notice("No loan product is available right now.")
+                } else {
+                    saveLoanProductContext(product)
                     model.state.putString("selectedProductId", productId)
-                    go(WITHDRAW)
+                    go(ORDER_DETAIL)
                 }
             }
         }
@@ -2473,6 +3652,17 @@ class MainActivity : Activity() {
             VOTER_CARD -> ApiField.FRONT_VOTER_CARD
             else -> ApiField.FRONT_IMAGE
         }
+        val storedIdNumber = model.field("${cardScreen.name}_$idIndex")
+        val idNumber = if (cardScreen == IDENTITY_CARD) {
+            val suffix = if (storedIdNumber.startsWith("GHA-", ignoreCase = true)) {
+                storedIdNumber.substring(4)
+            } else {
+                storedIdNumber
+            }
+            if (suffix.isBlank()) "" else "GHA-$suffix"
+        } else {
+            storedIdNumber
+        }
         val contacts = org.json.JSONArray()
         for ((phoneIndex, nameIndexInPage, relationIndex) in contactFieldIndices) {
             val phone = model.field("CONTACTS_$phoneIndex")
@@ -2495,8 +3685,8 @@ class MainActivity : Activity() {
                 VOTER_CARD -> "Voter Card"
                 else -> "ID Card"
             })
-            put(idKey, model.field("${cardScreen.name}_$idIndex"))
-            put(ApiField.FULL_NAME, model.field("${cardScreen.name}_$nameIndex"))
+            put(idKey, idNumber)
+            put(ApiField.FULL_NAME, model.field("${cardScreen.name}_$nameIndex").trim())
             put(ApiField.BIRTH_DATE, model.field("${cardScreen.name}_$dateIndex"))
             put(ApiField.GENDER, model.field("${cardScreen.name}_$genderIndex"))
             put(ApiField.WALLET_ACCOUNT, model.field("WALLET_SETUP_11"))
@@ -2507,9 +3697,10 @@ class MainActivity : Activity() {
             put(ApiField.MARITAL_STATUS, model.field("PERSONAL_INFO_37"))
             put(ApiField.JOB_TITLE, model.field("PERSONAL_INFO_38"))
             put(ApiField.INDUSTRY, model.field("PERSONAL_INFO_39"))
-            put(ApiField.PAY_CYCLE, model.field("PERSONAL_INFO_40"))
             put(ApiField.EMAIL, model.field("PERSONAL_INFO_41"))
             put(ApiField.ADDRESS, model.field("PERSONAL_INFO_42"))
+            put(ApiField.PROVINCE, model.state.getString("authentication.province").orEmpty())
+            put(ApiField.DISTRICT, model.state.getString("authentication.district").orEmpty())
             put(ApiField.MESSAGING_ACCOUNT, model.field("PERSONAL_INFO_43"))
             if (includeApplyAmount && model.state.getBoolean("amountTouched", false)) {
                 put(ApiField.APPLY_AMOUNT, model.state.getLong("applyAmountValue", 0L).toString())
@@ -2517,26 +3708,16 @@ class MainActivity : Activity() {
         }.filterValues(String::isNotBlank)
     }
 
-    private suspend fun continueAfterIdentity(info: org.json.JSONObject): AuthContinuation {
-        if (info.optInt(ApiField.USER_STATUS) != 2 || info.optInt(ApiField.USER_LIVENESS) != 1) {
-            return AuthContinuation(info, null)
-        }
+    private suspend fun continueAfterIdentity(): AuthContinuation {
         val recommended = fetchUserInfo(recommended = true)
+        if (recommended.optInt(ApiField.USER_STATUS) != 2 || recommended.optInt(ApiField.USER_LIVENESS) != 1) {
+            return AuthContinuation(recommended, null)
+        }
         val product = recommended.optJSONObject(ApiField.LOAN_PRODUCT)
             ?: return AuthContinuation(recommended, null)
-        val productId = product.optString(ApiField.PRODUCT_ID)
-        if (productId.isBlank()) return AuthContinuation(recommended, null)
-        model.state.putString("selectedProductId", productId)
-        val hasProductDetails = product.keys().asSequence()
-            .filter { it != ApiField.PRODUCT_ID }
-            .any { key -> product.optString(key).isNotBlank() }
-        if (hasProductDetails) requireAmountRange()
-        val order = if (hasProductDetails) null else createOrderAndReadNumber(productId)
-        return AuthContinuation(recommended, order)
+        if (product.optString(ApiField.PRODUCT_ID).isBlank()) return AuthContinuation(recommended, null)
+        return AuthContinuation(recommended, product)
     }
-
-    private fun continuationProductId(info: org.json.JSONObject): String =
-        info.optJSONObject(ApiField.LOAN_PRODUCT)?.optString(ApiField.PRODUCT_ID).orEmpty()
 
     private fun confirm() {
         when (screen) {
@@ -2593,6 +3774,401 @@ class MainActivity : Activity() {
         }.show()
     }
 
+    private fun configureFaceCamera(page: ViewGroup) {
+        faceCameraContainer = page.findViewById(IdentityR.id.face_camera_preview_container)
+        faceCameraStatus = page.findViewById(IdentityR.id.face_camera_status)
+        faceCaptureButton = page.findViewWithTag("Capture selfie photo")
+        faceCaptureIcon = page.findViewById(IdentityR.id.face_capture_icon)
+        faceCaptureInProgress = false
+        setFaceCaptureReady(false)
+        faceCameraStatus?.setOnClickListener { retryFaceCamera() }
+        ensureFaceCameraPreview()
+    }
+
+    private fun configureDocumentCamera(page: ViewGroup) {
+        documentCameraContainer = page.findViewById(IdentityR.id.document_camera_preview_container)
+        documentCameraStatus = page.findViewById(IdentityR.id.document_camera_status)
+        documentCaptureButton = page.findViewWithTag("Capture document photo")
+        documentCaptureInProgress = false
+        setDocumentCaptureReady(false)
+        documentCameraStatus?.setOnClickListener { retryDocumentCamera() }
+        ensureDocumentCameraPreview()
+    }
+
+    private fun ensureDocumentCameraPreview() {
+        if (layoutPreview || screen != DOCUMENT_GUIDE || documentCameraController != null) return
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestDocumentCameraPermission()
+            return
+        }
+
+        val container = documentCameraContainer ?: return
+        setDocumentCameraStatus(null)
+        setDocumentCaptureReady(false)
+        lateinit var controller: CameraPreviewController
+        controller = CameraPreviewController(
+            context = this,
+            lifecycleOwner = this,
+            lensFacing = CameraSelector.LENS_FACING_BACK,
+            onPreviewStateChanged = { streaming ->
+                if (documentCameraController === controller && screen == DOCUMENT_GUIDE) {
+                    setDocumentCameraStatus(null)
+                    setDocumentCaptureReady(streaming)
+                }
+            },
+            onError = {
+                if (documentCameraController === controller && screen == DOCUMENT_GUIDE) {
+                    controller.close()
+                    documentCameraController = null
+                    setDocumentCaptureReady(false)
+                    setDocumentCameraStatus("Camera unavailable. Tap here to retry.")
+                    notice("Camera unavailable. Please try again.")
+                }
+            }
+        )
+        documentCameraController = controller
+        controller.start(container)
+    }
+
+    private fun requestDocumentCameraPermission() {
+        val requestedBefore = model.state.getBoolean("cameraPermissionRequested")
+        if (requestedBefore && !shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+            AlertDialog.Builder(this)
+                .setMessage("Camera access is required. Enable it in app settings to capture your document.")
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton("Open Settings") { _, _ ->
+                    try {
+                        startActivity(Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", packageName, null)
+                        ))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        notice("Unable to open app settings. Please change the camera permission manually.")
+                    }
+                }
+                .show()
+            return
+        }
+
+        model.state.putBoolean("cameraPermissionRequested", true)
+        requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
+    }
+
+    private fun retryDocumentCamera() {
+        if (screen != DOCUMENT_GUIDE) return
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestDocumentCameraPermission()
+            return
+        }
+        releaseDocumentCamera()
+        configureDocumentCamera(stage)
+    }
+
+    private fun setDocumentCameraStatus(message: String?) {
+        documentCameraStatus?.let { status ->
+            if (message.isNullOrBlank()) {
+                status.visibility = View.GONE
+            } else {
+                status.text = message
+                status.contentDescription = message
+                status.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun setDocumentCaptureReady(ready: Boolean) {
+        documentCameraReady = ready
+        val enabled = ready && !documentCaptureInProgress
+        documentCaptureButton?.isEnabled = enabled
+        documentCaptureButton?.alpha = if (enabled) 1f else 0.45f
+    }
+
+    private fun releaseDocumentCamera() {
+        documentCameraController?.close()
+        documentCameraController = null
+        documentCameraReady = false
+        documentCaptureInProgress = false
+        documentCameraContainer = null
+        documentCameraStatus = null
+        documentCaptureButton = null
+    }
+
+    private fun ensureFaceCameraPreview() {
+        if (layoutPreview || screen != FACE_GUIDE || faceCameraController != null) return
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestFaceCameraPermission()
+            return
+        }
+
+        val container = faceCameraContainer ?: return
+        setFaceCameraStatus(null)
+        setFaceCaptureReady(false)
+        lateinit var controller: CameraPreviewController
+        controller = CameraPreviewController(
+            context = this,
+            lifecycleOwner = this,
+            lensFacing = CameraSelector.LENS_FACING_FRONT,
+            onPreviewStateChanged = { streaming ->
+                if (faceCameraController === controller && screen == FACE_GUIDE) {
+                    setFaceCameraStatus(null)
+                    setFaceCaptureReady(streaming)
+                }
+            },
+            onError = {
+                if (faceCameraController === controller && screen == FACE_GUIDE) {
+                    controller.close()
+                    faceCameraController = null
+                    setFaceCaptureReady(false)
+                    setFaceCameraStatus(getString(CoreR.string.face_camera_retry_unavailable))
+                    notice("Camera unavailable. Please try again.")
+                }
+            }
+        )
+        faceCameraController = controller
+        controller.start(container)
+    }
+
+    private fun requestFaceCameraPermission() {
+        val requestedBefore = model.state.getBoolean("cameraPermissionRequested")
+        if (requestedBefore && !shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+            AlertDialog.Builder(this)
+                .setMessage("Camera access is required. Enable it in app settings to take your selfie.")
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton("Open Settings") { _, _ ->
+                    try {
+                        startActivity(Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", packageName, null)
+                        ))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        notice("Unable to open app settings. Please change the camera permission manually.")
+                    }
+                }
+                .show()
+            return
+        }
+
+        model.state.putBoolean("cameraPermissionRequested", true)
+        requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
+    }
+
+    private fun retryFaceCamera() {
+        if (screen != FACE_GUIDE) return
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestFaceCameraPermission()
+            return
+        }
+        releaseFaceCamera()
+        configureFaceCamera(stage)
+    }
+
+    private fun setFaceCameraStatus(message: String?) {
+        faceCameraStatus?.let { status ->
+            if (message.isNullOrBlank()) {
+                status.visibility = View.GONE
+            } else {
+                status.text = message
+                status.contentDescription = message
+                status.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    private fun setFaceCaptureReady(ready: Boolean) {
+        faceCameraReady = ready
+        val enabled = ready && !faceCaptureInProgress
+        faceCaptureButton?.isEnabled = enabled
+        faceCaptureButton?.alpha = if (enabled) 1f else 0.45f
+        faceCaptureIcon?.alpha = if (enabled) 1f else 0.45f
+    }
+
+    private fun releaseFaceCamera() {
+        faceCameraController?.close()
+        faceCameraController = null
+        faceCameraReady = false
+        faceCaptureInProgress = false
+        faceCameraContainer = null
+        faceCameraStatus = null
+        faceCaptureButton = null
+        faceCaptureIcon = null
+    }
+
+    private fun captureDocumentPhoto() {
+        if (screen != DOCUMENT_GUIDE || documentCaptureInProgress) return
+        if (!documentCameraReady) {
+            ensureDocumentCameraPreview()
+            return
+        }
+        pendingDocumentCapture?.let {
+            uploadPendingDocumentPhoto()
+            return
+        }
+        val owner = pendingDocumentScreen?.takeIf {
+            it in setOf(IDENTITY_CARD, DRIVER_LICENSE, VOTER_CARD, IDENTITY_FILLED)
+        } ?: IDENTITY_CARD.also { pendingDocumentScreen = it }
+        val controller = documentCameraController ?: return
+        val photoDirectory = java.io.File(cacheDir, "camera-photos")
+        if (!photoDirectory.exists() && !photoDirectory.mkdirs()) {
+            notice("Unable to prepare a photo. Please try again.")
+            return
+        }
+        var filename = "document_${System.currentTimeMillis()}.jpg"
+        var photoFile = java.io.File(photoDirectory, filename)
+        var suffix = 0
+        while (!runCatching { photoFile.createNewFile() }.getOrDefault(false)) {
+            suffix++
+            filename = "document_${System.currentTimeMillis()}_$suffix.jpg"
+            photoFile = java.io.File(photoDirectory, filename)
+            if (suffix > 10) {
+                notice("Unable to prepare a photo. Please try again.")
+                return
+            }
+        }
+        val uri = Uri.Builder().scheme("content").authority("$packageName.camera-files")
+            .appendPath("camera").appendPath(filename).build()
+        localPhotoUris += uri
+        documentCaptureInProgress = true
+        setDocumentCaptureReady(true)
+        controller.capture(
+            output = photoFile,
+            onSaved = {
+                if (screen != DOCUMENT_GUIDE || pendingDocumentScreen != owner) {
+                    deleteLocalPhoto(uri)
+                    documentCaptureInProgress = false
+                    return@capture
+                }
+                activityScope.launch {
+                    val capturedPreview = runCatching {
+                        withContext(Dispatchers.IO) { decodeFacePreview(uri) }
+                    }.getOrNull()
+                    if (screen != DOCUMENT_GUIDE || pendingDocumentScreen != owner) {
+                        capturedPreview?.takeUnless(Bitmap::isRecycled)?.recycle()
+                        deleteLocalPhoto(uri)
+                        documentCaptureInProgress = false
+                    } else if (capturedPreview == null) {
+                        deleteLocalPhoto(uri)
+                        documentCaptureInProgress = false
+                        setDocumentCaptureReady(true)
+                        notice("Unable to read the document photo. Please try again.")
+                    } else {
+                        pendingDocumentCapture?.preview?.takeUnless(Bitmap::isRecycled)?.recycle()
+                        pendingDocumentCapture = CapturedPhoto(uri, capturedPreview)
+                        documentCaptureInProgress = false
+                        uploadPendingDocumentPhoto()
+                    }
+                }
+            },
+            onFailure = {
+                deleteLocalPhoto(uri)
+                if (screen == DOCUMENT_GUIDE) {
+                    documentCaptureInProgress = false
+                    setDocumentCaptureReady(true)
+                    notice("Unable to take the document photo. Please try again.")
+                }
+            }
+        )
+    }
+
+    private fun uploadPendingDocumentPhoto() {
+        val capture = pendingDocumentCapture ?: return
+        val owner = pendingDocumentScreen ?: return
+        if (screen != DOCUMENT_GUIDE || documentCaptureInProgress) return
+        documentCaptureInProgress = true
+        setDocumentCaptureReady(documentCameraReady)
+        setDocumentCameraStatus("Uploading photo. Tap here to retry if it fails.")
+        apiCall("Uploading document photo…", {
+            S3ImageUploader(this, api).uploadUri(capture.uri, true)
+        }, onFailure = {
+            documentCaptureInProgress = false
+            setDocumentCaptureReady(documentCameraReady)
+            setDocumentCameraStatus("Upload failed. Tap the camera to retry.")
+        }) { path ->
+            if (pendingDocumentCapture !== capture || pendingDocumentScreen != owner) return@apiCall
+            model.state.putString("documentImage_${owner.name}", path)
+            documentCapturePreviews.remove(owner)?.takeUnless(Bitmap::isRecycled)?.recycle()
+            documentCapturePreviews[owner] = capture.preview
+            pendingDocumentCapture = null
+            deleteLocalPhoto(capture.uri)
+            val changeType = when (owner) {
+                IDENTITY_CARD -> "CHANGE_IDCARD_FONT"
+                DRIVER_LICENSE -> "CHANGE_DRIVING_LICENSE_IMG"
+                VOTER_CARD -> "CHANGE_VOTER_CARD_IMG"
+                else -> null
+            }
+            if (changeType != null) trackAuthChange(owner, changeType)
+            pendingDocumentScreen = null
+            documentCaptureInProgress = false
+            go(owner, replace = true)
+        }
+    }
+
+    private fun captureFacePhoto() {
+        if (screen != FACE_GUIDE || faceCaptureInProgress) return
+        if (!faceCameraReady) {
+            ensureFaceCameraPreview()
+            return
+        }
+        val controller = faceCameraController ?: return
+        val photoDirectory = java.io.File(cacheDir, "camera-photos")
+        if (!photoDirectory.exists() && !photoDirectory.mkdirs()) {
+            notice("Unable to prepare a photo. Please try again.")
+            return
+        }
+        var filename = "face_${System.currentTimeMillis()}.jpg"
+        var photoFile = java.io.File(photoDirectory, filename)
+        var suffix = 0
+        while (!runCatching { photoFile.createNewFile() }.getOrDefault(false)) {
+            suffix++
+            filename = "face_${System.currentTimeMillis()}_$suffix.jpg"
+            photoFile = java.io.File(photoDirectory, filename)
+            if (suffix > 10) {
+                notice("Unable to prepare a photo. Please try again.")
+                return
+            }
+        }
+        val uri = Uri.Builder().scheme("content").authority("$packageName.camera-files")
+            .appendPath("camera").appendPath(filename).build()
+        localPhotoUris += uri
+        faceCaptureInProgress = true
+        setFaceCaptureReady(true)
+        controller.capture(
+            output = photoFile,
+            onSaved = {
+                if (screen != FACE_GUIDE) {
+                    deleteLocalPhoto(uri)
+                } else {
+                    activityScope.launch {
+                        val capturedPreview = runCatching {
+                            withContext(Dispatchers.IO) { decodeFacePreview(uri) }
+                        }.getOrNull()
+                        if (screen != FACE_GUIDE) {
+                            capturedPreview?.takeUnless(Bitmap::isRecycled)?.recycle()
+                            deleteLocalPhoto(uri)
+                        } else if (capturedPreview == null) {
+                            deleteLocalPhoto(uri)
+                            faceCaptureInProgress = false
+                            setFaceCaptureReady(true)
+                            notice("Unable to read the selfie. Please try again.")
+                        } else {
+                            clearSelfieCapture()
+                            preview = capturedPreview
+                            selfieUri = uri
+                            go(FACE_PREVIEW)
+                        }
+                    }
+                }
+            },
+            onFailure = {
+                deleteLocalPhoto(uri)
+                if (screen == FACE_GUIDE) {
+                    faceCaptureInProgress = false
+                    setFaceCaptureReady(true)
+                    notice("Unable to take the selfie. Please try again.")
+                }
+            }
+        )
+    }
+
     private fun pickFile(type: String) {
         val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).setType(type).addCategory(Intent.CATEGORY_OPENABLE)
         startActivityForResult(picker, 31)
@@ -2600,6 +4176,7 @@ class MainActivity : Activity() {
 
     private fun takePhoto() {
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            model.state.putBoolean("cameraPermissionRequested", true)
             requestPermissions(arrayOf(Manifest.permission.CAMERA), CAMERA_PERMISSION_REQUEST)
             return
         }
@@ -2656,33 +4233,6 @@ class MainActivity : Activity() {
                 return
             }
             when (screen) {
-                DOCUMENT_GUIDE -> {
-                    val owner = pendingDocumentScreen ?: IDENTITY_CARD
-                    apiCall("Uploading document photo…", {
-                        val capturedPreview = withContext(Dispatchers.IO) { decodePreview(imageUri) }
-                            ?: throw ApiException("Unable to read the captured photo. Please try again.")
-                        try {
-                            val path = S3ImageUploader(this, api).uploadUri(imageUri, true)
-                            path to capturedPreview
-                        } catch (failure: Exception) {
-                            capturedPreview.recycle()
-                            throw failure
-                        }
-                    }, onFailure = { deleteLocalPhoto(imageUri) }) { (path, capturedPreview) ->
-                        deleteLocalPhoto(imageUri)
-                        clearDocumentCapturePreview()
-                        documentCapturePreview = capturedPreview
-                        model.state.putString("documentImage_${owner.name}", path)
-                        val changeType = when (owner) {
-                            IDENTITY_CARD -> "CHANGE_IDCARD_FONT"
-                            DRIVER_LICENSE -> "CHANGE_DRIVING_LICENSE_IMG"
-                            VOTER_CARD -> "CHANGE_VOTER_CARD_IMG"
-                            else -> null
-                        }
-                        if (changeType != null) trackAuthChange(owner, changeType)
-                        go(DOCUMENT_PREVIEW)
-                    }
-                }
                 ATTACHMENT_SOURCE -> {
                     apiCall("Uploading photo…", { S3ImageUploader(this, api).uploadUri(imageUri, true) }) { path ->
                         deleteLocalPhoto(imageUri)
@@ -2709,12 +4259,43 @@ class MainActivity : Activity() {
 
     private fun decodePreview(uri: Uri): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        val boundsStream = contentResolver.openInputStream(uri) ?: return null
+        boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sampleSize = 1
         while (bounds.outWidth / sampleSize > 1600 || bounds.outHeight / sampleSize > 1600) sampleSize *= 2
         val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
         return contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+    }
+
+    private fun decodeFacePreview(uri: Uri): Bitmap? {
+        val bitmap = decodePreview(uri) ?: return null
+        val orientation = runCatching {
+            contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                ExifInterface(descriptor.fileDescriptor).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            }
+        }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
+        val (rotation, flipped) = when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> 0f to true
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f to false
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> 180f to true
+            ExifInterface.ORIENTATION_TRANSPOSE -> 90f to true
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f to false
+            ExifInterface.ORIENTATION_TRANSVERSE -> 270f to true
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f to false
+            else -> 0f to false
+        }
+        if (rotation == 0f && !flipped) return bitmap
+        val transform = Matrix().apply {
+            if (rotation != 0f) postRotate(rotation)
+            if (flipped) postScale(-1f, 1f)
+        }
+        val corrected = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, transform, true)
+        if (corrected !== bitmap) bitmap.recycle()
+        return corrected
     }
 
     private fun clearSelfieCapture() {
@@ -2724,9 +4305,19 @@ class MainActivity : Activity() {
         selfieUri = null
     }
 
-    private fun clearDocumentCapturePreview() {
-        documentCapturePreview?.takeUnless(Bitmap::isRecycled)?.recycle()
-        documentCapturePreview = null
+    private fun clearPendingDocumentCapture() {
+        pendingDocumentCapture?.let { capture ->
+            capture.preview.takeUnless(Bitmap::isRecycled)?.recycle()
+            deleteLocalPhoto(capture.uri)
+        }
+        pendingDocumentCapture = null
+    }
+
+    private fun clearDocumentCapturePreviews() {
+        documentCapturePreviews.values.forEach { bitmap ->
+            bitmap.takeUnless(Bitmap::isRecycled)?.recycle()
+        }
+        documentCapturePreviews.clear()
     }
 
     private fun deleteLocalPhoto(uri: Uri) {
