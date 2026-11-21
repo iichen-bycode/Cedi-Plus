@@ -1210,7 +1210,10 @@ class MainActivity : Activity(), LifecycleOwner {
         screenDialog = null
         if (page in popupPages) {
             if (renderedScreen == null) {
-                renderPage(model.previousPage(popupPages.keys) ?: popupPages.getValue(page))
+                val previewBackground = if (layoutPreview && page == ATTACHMENT_SOURCE) {
+                    FEEDBACK_FILLED
+                } else null
+                renderPage(previewBackground ?: model.previousPage(popupPages.keys) ?: popupPages.getValue(page))
             }
             if (page == RATING || page == RATING_CHANGED) {
                 showRatingPanel(page, onCancel = ::leave) { score, comment ->
@@ -1396,6 +1399,7 @@ class MainActivity : Activity(), LifecycleOwner {
                 }
             }
         }
+        if (page == FEEDBACK_FILLED) configureFeedbackFilledAttachments()
         configureStickyAppBar()
         if (page == ORDERS || page == ORDERS_EMPTY) {
             val currentFilter = selectedOrderFilter()
@@ -1668,6 +1672,96 @@ class MainActivity : Activity(), LifecycleOwner {
         }
     }
 
+    private fun configureFeedbackFilledAttachments() {
+        val pdfHeading = getString(CoreR.string.text_please_upload_a_pdf_file)
+        val imageHeading = getString(CoreR.string.text_please_upload_the_problematic_image)
+        val submitLabel = getString(CoreR.string.text_submit)
+        val submitBackground = stage.findViewById<View>(AccountR.id.feedback_filled_submit_background)
+        val pdfHeadingView = (0 until stage.childCount).map(stage::getChildAt)
+            .firstOrNull { it.tag?.toString() == pdfHeading }
+        val imageHeadingView = (0 until stage.childCount).map(stage::getChildAt)
+            .firstOrNull { it.tag?.toString() == imageHeading }
+        val submitLabelView = (0 until stage.childCount).map(stage::getChildAt)
+            .firstOrNull { it.tag?.toString() == submitLabel }
+        val keepVisibleTags = setOf(pdfHeading, imageHeading, submitLabel)
+
+        (0 until stage.childCount).map(stage::getChildAt).forEach { child ->
+            val tag = child.tag?.toString()
+            val top = pageConstraints.top(child)
+            if (layoutPreview && (tag == "Choose PDF" || tag == "Choose image")) {
+                child.visibility = View.GONE
+            } else if (top >= 617f && top < 1086f && tag !in keepVisibleTags && child !== submitBackground) {
+                child.visibility = View.GONE
+            }
+        }
+
+        val columns = listOf(20f, 106f, 193f, 279f)
+        val pdfFiles = if (layoutPreview) {
+            List(intent.getIntExtra("preview_pdf_count", 0).coerceIn(0, 9)) { "preview-${it + 1}.pdf" }
+        } else feedback.attachments(images = false)
+        val imageFiles = if (layoutPreview) {
+            List(intent.getIntExtra("preview_image_count", 0).coerceIn(0, 9)) { "preview-${it + 1}.jpg" }
+        } else feedback.attachments(images = true)
+
+        val cardWidth = 76f
+        val cardHeight = 44f
+        val rowStride = 60f
+        val headingHeight = 19f
+        val headingToGridGap = 8f
+        val sectionGap = 34f
+        val pdfHeadingTop = 590f
+        val pdfGridTop = pdfHeadingTop + headingHeight + headingToGridGap
+        val pdfRows = (pdfFiles.size + columns.size - 1) / columns.size
+        val pdfGridBottom = if (pdfRows == 0) pdfHeadingTop + headingHeight
+            else pdfGridTop + (pdfRows - 1) * rowStride + cardHeight
+        val imageHeadingTop = pdfGridBottom + sectionGap
+        val imageGridTop = imageHeadingTop + headingHeight + headingToGridGap
+        val imageRows = (imageFiles.size + columns.size - 1) / columns.size
+        val imageGridBottom = if (imageRows == 0) imageHeadingTop + headingHeight
+            else imageGridTop + (imageRows - 1) * rowStride + cardHeight
+        val submitTop = imageGridBottom + 20f
+
+        pdfHeadingView?.let { pageConstraints.moveTo(it, pdfHeadingTop) }
+        imageHeadingView?.let { pageConstraints.moveTo(it, imageHeadingTop) }
+        submitLabelView?.let { pageConstraints.moveTo(it, submitTop + 11f) }
+        submitBackground?.let { pageConstraints.moveTo(it, submitTop) }
+
+        fun addImage(resourceId: Int, left: Float, top: Float, width: Float, height: Float): ImageView =
+            ImageView(this).apply {
+                setImageResource(resourceId)
+                scaleType = ImageView.ScaleType.FIT_XY
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                pageConstraints.add(this, left, top, width, height)
+            }
+
+        pdfFiles.forEachIndexed { index, file ->
+            val left = columns[index % columns.size]
+            val top = pdfGridTop + (index / columns.size) * rowStride
+            addImage(CoreR.drawable.art_8d77b4cefcbc, left, top, cardWidth, cardHeight)
+            addImage(CoreR.drawable.art_725fcdad14de, left + 10f, top + 6f, 16f, 18f)
+            addImage(CoreR.drawable.art_dac5ffb142ed, left + 60f, top, 16f, 16f)
+
+            val filename = TextView(this).apply {
+                text = if (layoutPreview) "XXXXXX" else file.substringAfterLast('/').substringBeforeLast('.').takeLast(6)
+                setTextColor(Color.rgb(153, 153, 153))
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+                typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                includeFontPadding = false
+                maxLines = 1
+                setPadding(0, 0, 0, 0)
+            }
+            pageConstraints.add(filename, left + 10f, top + 24f, 46f, 14f)
+        }
+
+        imageFiles.forEachIndexed { index, _ ->
+            val left = columns[index % columns.size]
+            val top = imageGridTop + (index / columns.size) * rowStride
+            addImage(CoreR.drawable.art_acbf1c1ef515, left, top, cardWidth, cardHeight)
+        }
+        pageConstraints.setContentHeight(submitTop + 60f)
+    }
+
     private fun configureStickyAppBar() {
         if (screen in setOf(SIGN_IN, DOCUMENT_GUIDE)) return
         stage.findViewById<View>(AccountR.id.about_header)?.let { header ->
@@ -1736,7 +1830,12 @@ class MainActivity : Activity(), LifecycleOwner {
                 (view is ImageView || view.background != null)
         }
         val background = View(this).apply {
-            setBackgroundColor(if (hasArtworkBehindHeader) Color.TRANSPARENT else Color.WHITE)
+            val color = when {
+                screen == FEEDBACK_FILLED -> Color.rgb(255, 249, 230)
+                hasArtworkBehindHeader -> Color.TRANSPARENT
+                else -> Color.WHITE
+            }
+            setBackgroundColor(color)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         // Keep the header fixed with the page's own backdrop; no divider or elevation is added.
@@ -2492,10 +2591,17 @@ class MainActivity : Activity(), LifecycleOwner {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         val scroll = ScrollView(this)
+        scroll.isVerticalScrollBarEnabled = page != SELECT_ORDER
         val panel = layoutInflater.inflate(pages.getValue(page), scroll, false) as ViewGroup
         val constraints = ScreenConstraints(panel)
         constraints.updateWidth(viewport.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels)
         scroll.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ -> constraints.updateWidth(view.width) }
+        if (page == SELECT_ORDER) {
+            scroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                panel.findViewById<View>(AccountR.id.select_order_close_icon)?.translationY = scrollY.toFloat()
+                panel.findViewById<View>(AccountR.id.select_order_close_button)?.translationY = scrollY.toFloat()
+            }
+        }
         scroll.addView(panel)
         dialog.setContentView(scroll)
         dialog.setCanceledOnTouchOutside(false)
@@ -2511,6 +2617,12 @@ class MainActivity : Activity(), LifecycleOwner {
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             setDimAmount(0.4f)
             setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT)
+            if (page == ATTACHMENT_SOURCE || page == ATTACHMENT_DELETE || page == FEEDBACK_SUCCESS) {
+                attributes = attributes.apply {
+                    gravity = Gravity.CENTER
+                    y = dp(-19)
+                }
+            }
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
                 WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
         }
@@ -4223,6 +4335,7 @@ class MainActivity : Activity(), LifecycleOwner {
             apiCall("Uploading attachment…", { S3ImageUploader(this, api).uploadUri(file, isImage) }) { path ->
                 val added = feedback.attach(path, isImage)
                 if (screen == ATTACHMENT_SOURCE) leave()
+                else if (added && screen == FEEDBACK_FILLED) renderPage(FEEDBACK_FILLED)
                 notice(if (added) "File uploaded" else "Up to 9 attachments are allowed")
             }
         } else if (requestCode == 32) {

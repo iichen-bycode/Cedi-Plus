@@ -295,13 +295,7 @@
     
     <string name="text_amount_up_to_1_000_000_ghc" formatted="false">Amount up to 1,000,000 GHC</string>
     
-    <string name="text_your_application_was_not_approved_please_try_again" formatted="false">
-        <font color="#192048">Your application was not approved. Please try again in </font>
-        <font color="#192048">
-            <b>6</b>
-        </font>
-        <font color="#192048"> days.</font>
-    </string>
+    <string name="text_your_application_was_not_approved_please_try_again" formatted="false"><font color="#192048">Your application was not approved. Please try again in </font><font face="sans-serif-black" color="#192048">6</font><font color="#192048"> days.</font></string>
     
     <string name="text_disbursement_for_your_application_is_underway_you" formatted="false">Disbursement for your application is underway. You will be informed when it\'s completed.</string>
     
